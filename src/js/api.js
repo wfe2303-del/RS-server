@@ -1,7 +1,9 @@
-import { API_BASE } from './config.js';
+import { API_BASE, HISTORY_LIMIT } from './config.js';
 
-async function request(params) {
+async function request(params = {}, options = {}) {
+  const method = options.method || 'GET';
   const url = new URL(API_BASE, window.location.href);
+
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') {
       url.searchParams.set(key, String(value));
@@ -9,10 +11,12 @@ async function request(params) {
   });
 
   const response = await fetch(url.toString(), {
-    method: 'GET',
+    method,
     headers: {
       Accept: 'application/json',
+      ...(method === 'POST' ? { 'Content-Type': 'application/json; charset=utf-8' } : {}),
     },
+    body: method === 'POST' ? JSON.stringify(options.body || {}) : undefined,
     cache: 'no-store',
   });
 
@@ -44,4 +48,28 @@ export function fetchSheetGrid(sheet) {
     sheetId: sheet?.sheetId || '',
     sheetTitle: sheet?.title || '',
   });
+}
+
+export function fetchHistoryList(limit = HISTORY_LIMIT) {
+  return request({
+    action: 'historyList',
+    limit,
+  });
+}
+
+export function fetchHistoryDetail(recordId) {
+  return request({
+    action: 'historyDetail',
+    recordId,
+  });
+}
+
+export function saveHistorySnapshot(snapshot) {
+  return request(
+    { action: 'historySave' },
+    {
+      method: 'POST',
+      body: { snapshot },
+    },
+  );
 }

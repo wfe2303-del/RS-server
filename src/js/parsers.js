@@ -164,20 +164,22 @@ export function computeResults(payers, applicants, mode) {
   const totalPayCount = [...countByMedia.values()].reduce((sum, value) => sum + value, 0) + otherCount;
   const totalPayAmount = [...amountByMedia.values()].reduce((sum, value) => sum + value, 0) + otherAmount;
 
-  const dashboard = mediaNames.map((name) => {
-    const pay = countByMedia.get(name) || 0;
-    const amount = amountByMedia.get(name) || 0;
-    const tracking = trackingByMedia.get(name) || 0;
+  const dashboard = mediaNames
+    .map((name) => {
+      const pay = countByMedia.get(name) || 0;
+      const amount = amountByMedia.get(name) || 0;
+      const tracking = trackingByMedia.get(name) || 0;
 
-    return {
-      name,
-      pay,
-      tracking,
-      rate: tracking ? pay / tracking : 0,
-      amount,
-      amountShare: totalPayAmount ? amount / totalPayAmount : 0,
-    };
-  }).sort((a, b) => b.amount - a.amount);
+      return {
+        name,
+        pay,
+        tracking,
+        rate: tracking ? pay / tracking : 0,
+        amount,
+        amountShare: totalPayAmount ? amount / totalPayAmount : 0,
+      };
+    })
+    .sort((a, b) => b.amount - a.amount);
 
   return {
     mode,

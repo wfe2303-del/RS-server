@@ -28,6 +28,7 @@ export function drawDonut(canvas, items, total, colorByName) {
   }
 
   let start = -Math.PI / 2;
+
   items.forEach((item) => {
     const amount = Math.max(0, Number(item.amount || 0));
     const end = start + (amount / total) * Math.PI * 2;

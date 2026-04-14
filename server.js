@@ -1,5 +1,4 @@
 const http = require('http');
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { buildMockPayload } = require('./lib/mock-backend');
@@ -26,7 +25,7 @@ const CONTENT_TYPES = {
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-store',
   });
   response.end(JSON.stringify(payload));
 }
@@ -65,49 +64,14 @@ function sendFile(filePath, response) {
   });
 }
 
-function requestWithRedirects(targetUrl, remainingRedirects = 5) {
+function readRequestBody(request) {
   return new Promise((resolve, reject) => {
-    const client = targetUrl.protocol === 'http:' ? http : https;
-    const proxyRequest = client.request(targetUrl, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-    }, (proxyResponse) => {
-      const statusCode = proxyResponse.statusCode || 502;
-      const location = proxyResponse.headers.location;
-
-      if (location && [301, 302, 303, 307, 308].includes(statusCode)) {
-        proxyResponse.resume();
-
-        if (remainingRedirects <= 0) {
-          reject(new Error('Apps Script redirect limit exceeded.'));
-          return;
-        }
-
-        const redirectedUrl = new URL(location, targetUrl);
-        requestWithRedirects(redirectedUrl, remainingRedirects - 1)
-          .then(resolve)
-          .catch(reject);
-        return;
-      }
-
-      let body = '';
-      proxyResponse.setEncoding('utf8');
-      proxyResponse.on('data', (chunk) => {
-        body += chunk;
-      });
-      proxyResponse.on('end', () => {
-        resolve({
-          statusCode,
-          headers: proxyResponse.headers,
-          body,
-        });
-      });
+    let body = '';
+    request.on('data', (chunk) => {
+      body += chunk;
     });
-
-    proxyRequest.on('error', reject);
-    proxyRequest.end();
+    request.on('end', () => resolve(body));
+    request.on('error', reject);
   });
 }
 
@@ -118,6 +82,14 @@ async function proxyAppsScript(request, response) {
   const incomingUrl = new URL(request.url || API_PATH, `http://${request.headers.host || `localhost:${PORT}`}`);
 
   if (!appsScriptUrl && mockFile) {
+    if (request.method === 'POST') {
+      sendJson(response, 501, {
+        ok: false,
+        error: 'Mock mode does not support POST history saves.',
+      });
+      return;
+    }
+
     try {
       const payload = buildMockPayload({
         filePath: path.resolve(ROOT_DIR, mockFile),
@@ -131,7 +103,7 @@ async function proxyAppsScript(request, response) {
     } catch (error) {
       sendJson(response, 500, {
         ok: false,
-        error: `MOCK_SETTLEMENTS_FILE 처리에 실패했습니다: ${error.message}`,
+        error: `Failed to load MOCK_SETTLEMENTS_FILE: ${error.message}`,
       });
     }
     return;
@@ -140,7 +112,7 @@ async function proxyAppsScript(request, response) {
   if (!appsScriptUrl) {
     sendJson(response, 500, {
       ok: false,
-      error: 'APPS_SCRIPT_URL 환경변수가 설정되지 않았습니다.',
+      error: 'Missing APPS_SCRIPT_URL environment variable.',
     });
     return;
   }
@@ -151,7 +123,7 @@ async function proxyAppsScript(request, response) {
   } catch {
     sendJson(response, 500, {
       ok: false,
-      error: 'APPS_SCRIPT_URL 값이 올바른 URL이 아닙니다.',
+      error: 'APPS_SCRIPT_URL is not a valid URL.',
     });
     return;
   }
@@ -165,54 +137,74 @@ async function proxyAppsScript(request, response) {
   }
 
   try {
-    const proxyResponse = await requestWithRedirects(targetUrl);
-    response.writeHead(proxyResponse.statusCode || 502, {
-      'Content-Type': proxyResponse.headers['content-type'] || 'application/json; charset=utf-8',
-      'Cache-Control': 'no-cache',
+    const body = request.method === 'POST' ? await readRequestBody(request) : undefined;
+    const upstream = await fetch(targetUrl.toString(), {
+      method: request.method || 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...(request.method === 'POST'
+          ? { 'Content-Type': request.headers['content-type'] || 'application/json; charset=utf-8' }
+          : {}),
+      },
+      body,
+      redirect: 'follow',
     });
-    response.end(proxyResponse.body);
+
+    const upstreamBody = await upstream.text();
+    response.writeHead(upstream.status || 502, {
+      'Content-Type': upstream.headers.get('content-type') || 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    response.end(upstreamBody);
   } catch (error) {
     sendJson(response, 502, {
       ok: false,
-      error: `Apps Script 프록시 요청에 실패했습니다: ${error.message}`,
+      error: `Failed to reach Apps Script backend: ${error.message}`,
     });
   }
 }
 
-const server = http.createServer((request, response) => {
-  const requestUrl = new URL(request.url || '/', `http://${request.headers.host || `localhost:${PORT}`}`);
+const server = http.createServer(async (request, response) => {
+  try {
+    const requestUrl = new URL(request.url || '/', `http://${request.headers.host || `localhost:${PORT}`}`);
 
-  if (requestUrl.pathname === API_PATH) {
-    proxyAppsScript(request, response);
-    return;
+    if (requestUrl.pathname === API_PATH) {
+      await proxyAppsScript(request, response);
+      return;
+    }
+
+    const filePath = safeResolve(request.url || '/');
+    if (!filePath) {
+      response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+      response.end('Bad request');
+      return;
+    }
+
+    fs.stat(filePath, (error, stats) => {
+      if (!error && stats.isFile()) {
+        sendFile(filePath, response);
+        return;
+      }
+
+      if (!error && stats.isDirectory()) {
+        sendFile(path.join(filePath, 'index.html'), response);
+        return;
+      }
+
+      if (!path.extname(filePath)) {
+        sendFile(path.join(ROOT_DIR, 'index.html'), response);
+        return;
+      }
+
+      response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      response.end('Not found');
+    });
+  } catch (error) {
+    sendJson(response, 500, {
+      ok: false,
+      error: error.message || 'Internal server error.',
+    });
   }
-
-  const filePath = safeResolve(request.url || '/');
-  if (!filePath) {
-    response.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
-    response.end('Bad request');
-    return;
-  }
-
-  fs.stat(filePath, (error, stats) => {
-    if (!error && stats.isFile()) {
-      sendFile(filePath, response);
-      return;
-    }
-
-    if (!error && stats.isDirectory()) {
-      sendFile(path.join(filePath, 'index.html'), response);
-      return;
-    }
-
-    if (!path.extname(filePath)) {
-      sendFile(path.join(ROOT_DIR, 'index.html'), response);
-      return;
-    }
-
-    response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-    response.end('Not found');
-  });
 });
 
 server.listen(PORT, HOST, () => {

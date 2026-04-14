@@ -74,6 +74,24 @@ export function formatPercent(value) {
   return `${(Number(value || 0) * 100).toFixed(1)}%`;
 }
 
+export function formatDeltaCount(value) {
+  const amount = Math.abs(Number(value || 0));
+  const prefix = value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${prefix}${formatCount(amount)}`;
+}
+
+export function formatDeltaKRW(value) {
+  const amount = Math.abs(Number(value || 0));
+  const prefix = value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${prefix}${Math.round(amount).toLocaleString('ko-KR')}원`;
+}
+
+export function formatDeltaPercentPoint(value) {
+  const amount = Math.abs(Number(value || 0) * 100);
+  const prefix = value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${prefix}${amount.toFixed(1)}%p`;
+}
+
 export function formatDateTime(value) {
   if (!value) return '-';
 

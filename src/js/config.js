@@ -1,6 +1,6 @@
 export const APP_TITLE = '무료강의 결제 매칭 보드';
 export const API_BASE = window.__RS_APP_CONFIG__?.apiBaseUrl || '/api/settlements';
-export const STORAGE_KEY = 'classaround-rs-matching-v3';
+export const STORAGE_KEY = 'classaround-rs-matching-v4';
 
 export const PAYERS_RULES = {
   nameCol: 'C',
@@ -18,17 +18,18 @@ export const APPLICANTS_RULES = {
 };
 
 export const PALETTE = [
-  '#0f766e',
-  '#0284c7',
-  '#b45309',
-  '#65a30d',
-  '#dc2626',
-  '#7c3aed',
-  '#1d4ed8',
-  '#0ea5e9',
-  '#84cc16',
-  '#475569',
+  '#4f74c8',
+  '#ef5b3f',
+  '#22b36b',
+  '#1a1f5c',
+  '#7a9bff',
+  '#ff7a5f',
+  '#55d18a',
+  '#2f49a5',
+  '#9db6ff',
+  '#4fd59a',
 ];
 
-export const OTHER_COLOR = '#b91c1c';
-export const EMPTY_DONUT_COLOR = '#e7e5e4';
+export const OTHER_COLOR = '#ef5b3f';
+export const EMPTY_DONUT_COLOR = '#edf2f7';
+export const HISTORY_LIMIT = 50;

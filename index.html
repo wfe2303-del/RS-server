@@ -10,18 +10,16 @@
 <body>
   <div class="page-shell">
     <header class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">ClassAround Matching Board</p>
-        <h1>무료강의 결제 매칭 보드</h1>
-        <p class="hero-text">
-          고정 결제자 원본 시트는 Apps Script 백엔드에서 읽고,
-          무료강의 신청자 파일은 브라우저에서 직접 업로드해 전화번호 기준으로 매칭합니다.
-        </p>
+      <div class="hero-brand">
+        <img class="hero-logo" src="./assets/classaround-logo.png" alt="ClassAround" />
+        <div class="hero-title-stack">
+          <h1>무료강의 결제 매칭 보드</h1>
+        </div>
       </div>
 
       <div class="hero-actions">
         <span id="syncBadge" class="status-pill">연결 대기 중</span>
-        <button id="refreshBtn" class="btn" type="button">시트 새로고침</button>
+        <button id="refreshBtn" class="btn btn-secondary" type="button">시트 새로고침</button>
       </div>
     </header>
 
@@ -54,7 +52,25 @@
       </div>
 
       <div class="toolbar-actions">
-        <button id="runBtn" class="btn btn-primary" type="button">매칭 실행</button>
+        <button id="runBtn" class="btn btn-success" type="button">매칭 실행</button>
+      </div>
+    </section>
+
+    <section class="card toolbar-card">
+      <div class="toolbar-grid toolbar-grid-history">
+        <label class="field">
+          <span>저장 메모</span>
+          <input id="historyNote" class="input-text" type="text" maxlength="120" />
+        </label>
+
+        <div class="toolbar-meta">
+          <span id="historySaveStatus" class="status-pill">저장 전</span>
+        </div>
+      </div>
+
+      <div class="toolbar-actions">
+        <button id="saveHistoryBtn" class="btn btn-danger" type="button">현재 결과 저장</button>
+        <button id="reloadHistoryBtn" class="btn btn-secondary" type="button">기록 새로고침</button>
       </div>
     </section>
 
@@ -62,42 +78,34 @@
       <article class="summary-card">
         <p class="summary-label">결제 건수</p>
         <strong id="summaryTotalCount" class="summary-value">0</strong>
-        <p class="summary-sub">선택한 집계 기준</p>
       </article>
 
       <article class="summary-card">
         <p class="summary-label">결제 총액</p>
         <strong id="summaryTotalAmount" class="summary-value">0원</strong>
-        <p class="summary-sub">원본 결제 시트 기준</p>
       </article>
 
       <article class="summary-card">
         <p class="summary-label">매칭 결제</p>
         <strong id="summaryMatchedCount" class="summary-value">0</strong>
-        <p class="summary-sub">광고매체로 귀속된 결제</p>
       </article>
 
       <article class="summary-card">
         <p class="summary-label">매칭 결제 금액</p>
         <strong id="summaryMatchedAmount" class="summary-value">0원</strong>
-        <p class="summary-sub">매칭 완료 금액</p>
       </article>
 
       <article class="summary-card accent-card">
-        <p class="summary-label">미매칭 또는 번호 누락</p>
+        <p class="summary-label">기타 / 번호 누락</p>
         <strong id="summaryOtherAmount" class="summary-value">0원</strong>
-        <p class="summary-sub">기타 금액</p>
       </article>
     </section>
 
     <section class="card lecture-list-card">
       <div class="section-head">
         <div>
-          <p class="eyebrow eyebrow-small">Matching Result</p>
           <h2>광고매체별 결제 성과</h2>
-          <p id="resultMeta" class="section-meta">
-            결제자 시트와 신청자 파일이 모두 준비되면 매칭 결과가 표시됩니다.
-          </p>
+          <p id="resultMeta" class="section-meta"></p>
         </div>
         <span id="summaryBadge" class="status-pill">대기 중</span>
       </div>
@@ -133,7 +141,6 @@
         <div class="donut-wrap">
           <canvas id="donutCanvas" width="320" height="260"></canvas>
           <div class="donut-center">
-            <span class="donut-center-label">총 결제금액</span>
             <strong id="donutTotal" class="donut-center-value">0원</strong>
           </div>
         </div>
@@ -153,7 +160,6 @@
     <section class="card detail-card">
       <div class="section-head compact-head">
         <div>
-          <p class="eyebrow eyebrow-small">Missing Phone</p>
           <h2>전화번호 누락 결제자</h2>
         </div>
         <div class="detail-actions">
@@ -180,6 +186,56 @@
           </tbody>
         </table>
       </div>
+    </section>
+
+    <section class="card detail-card">
+      <div class="section-head">
+        <div>
+          <h2>저장된 매칭 기록</h2>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>저장 시각</th>
+              <th>시트 / 파일</th>
+              <th>집계 기준</th>
+              <th class="num">총 결제금액</th>
+              <th class="num">매칭 금액</th>
+              <th class="num">기타 금액</th>
+              <th>메모</th>
+              <th>동작</th>
+            </tr>
+          </thead>
+          <tbody id="historyTbody">
+            <tr>
+              <td colspan="8" class="empty-row">저장 기록을 불러오는 중입니다.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="visual-grid visual-grid-wide">
+      <article class="chart-card">
+        <div class="section-head compact-head">
+          <div>
+            <h3>저장 기록 상세</h3>
+          </div>
+        </div>
+        <div id="historyDetailBody"></div>
+      </article>
+
+      <article class="chart-card">
+        <div class="section-head compact-head">
+          <div>
+            <h3>기록 비교 분석</h3>
+          </div>
+        </div>
+        <div id="compareBody"></div>
+      </article>
     </section>
   </div>
 

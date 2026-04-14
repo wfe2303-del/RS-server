@@ -10,10 +10,18 @@ export const appState = {
   generatedAt: '',
   loadingCatalog: false,
   loadingSheet: false,
+  loadingHistory: false,
+  savingHistory: false,
   payers: null,
   applicants: null,
   applicantsFileName: '',
   results: null,
+  historyList: [],
+  historyRecords: {},
+  activeHistoryId: '',
+  compareBaseId: '',
+  compareTargetId: '',
+  lastSavedRecordId: '',
   error: '',
 };
 
@@ -32,4 +40,13 @@ export function setSelectedSheet(sheet) {
 
 export function selectedSheet() {
   return appState.sheetCatalog.find((sheet) => String(sheet.sheetId) === String(appState.selectedSheetId)) || null;
+}
+
+export function rememberHistoryRecord(record) {
+  if (!record?.recordId) return;
+  appState.historyRecords[record.recordId] = record;
+}
+
+export function getHistoryRecord(recordId) {
+  return appState.historyRecords[recordId] || null;
 }
