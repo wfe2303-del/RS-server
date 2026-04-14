@@ -1,8 +1,31 @@
 const path = require('path');
 const { buildMockPayload } = require('../lib/mock-backend');
 
+async function readRequestBody(request) {
+  if (request.body !== undefined && request.body !== null) {
+    if (typeof request.body === 'string') {
+      return request.body;
+    }
+
+    if (Buffer.isBuffer(request.body)) {
+      return request.body.toString('utf8');
+    }
+
+    return JSON.stringify(request.body);
+  }
+
+  return await new Promise((resolve, reject) => {
+    let body = '';
+    request.on('data', (chunk) => {
+      body += chunk;
+    });
+    request.on('end', () => resolve(body));
+    request.on('error', reject);
+  });
+}
+
 module.exports = async (request, response) => {
-  if (request.method !== 'GET') {
+  if (!['GET', 'POST'].includes(request.method || 'GET')) {
     response.statusCode = 405;
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
     response.end(JSON.stringify({
@@ -17,6 +40,16 @@ module.exports = async (request, response) => {
   const mockFile = process.env.MOCK_SETTLEMENTS_FILE || '';
 
   if (!appsScriptUrl && mockFile) {
+    if (request.method === 'POST') {
+      response.statusCode = 501;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.end(JSON.stringify({
+        ok: false,
+        error: 'Mock mode does not support POST history saves.',
+      }));
+      return;
+    }
+
     try {
       const payload = buildMockPayload({
         filePath: path.resolve(process.cwd(), mockFile),
@@ -81,18 +114,24 @@ module.exports = async (request, response) => {
   }
 
   try {
+    const body = request.method === 'POST' ? await readRequestBody(request) : undefined;
     const upstream = await fetch(targetUrl.toString(), {
-      method: 'GET',
+      method: request.method,
       headers: {
         Accept: 'application/json',
+        ...(request.method === 'POST'
+          ? { 'Content-Type': request.headers['content-type'] || 'application/json; charset=utf-8' }
+          : {}),
       },
+      body,
+      redirect: 'follow',
     });
 
-    const body = await upstream.text();
+    const upstreamBody = await upstream.text();
     response.statusCode = upstream.status;
     response.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json; charset=utf-8');
     response.setHeader('Cache-Control', 'no-store');
-    response.end(body);
+    response.end(upstreamBody);
   } catch (error) {
     response.statusCode = 502;
     response.setHeader('Content-Type', 'application/json; charset=utf-8');
