@@ -26,6 +26,11 @@ async function request(params = {}, options = {}) {
   try {
     payload = body ? JSON.parse(body) : null;
   } catch {
+    const looksLikeHtml = /<!doctype html|<html/i.test(body || '');
+    if (looksLikeHtml) {
+      throw new Error('백엔드가 JSON 대신 HTML을 반환했습니다. APPS_SCRIPT_URL 또는 Apps Script 배포 URL 설정을 확인해 주세요.');
+    }
+
     throw new Error(body || `API 호출에 실패했습니다. (${response.status})`);
   }
 
