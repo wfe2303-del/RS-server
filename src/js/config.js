@@ -19,15 +19,17 @@ export const APPLICANTS_RULES = {
 
 export const PALETTE = [
   '#4f74c8',
-  '#ef5b3f',
   '#22b36b',
-  '#1a1f5c',
-  '#7a9bff',
-  '#ff7a5f',
-  '#55d18a',
-  '#2f49a5',
-  '#9db6ff',
-  '#4fd59a',
+  '#7c3aed',
+  '#f59e0b',
+  '#06b6d4',
+  '#0f766e',
+  '#8b5cf6',
+  '#84cc16',
+  '#14b8a6',
+  '#1d4ed8',
+  '#9333ea',
+  '#0891b2',
 ];
 
 export const OTHER_COLOR = '#ef5b3f';

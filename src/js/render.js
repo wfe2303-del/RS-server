@@ -31,13 +31,22 @@ function currentRowsForRendering() {
   ];
 }
 
+function colorForIndex(index) {
+  if (PALETTE[index]) {
+    return PALETTE[index];
+  }
+
+  const hue = Math.round((index * 137.508) % 360);
+  return `hsl(${hue} 68% 48%)`;
+}
+
 function colorMap(rows) {
   const map = new Map();
 
   rows
     .filter((row) => !row.isOther)
     .forEach((row, index) => {
-      map.set(row.name, PALETTE[index % PALETTE.length]);
+      map.set(row.name, colorForIndex(index));
     });
 
   map.set('기타(미매칭)', OTHER_COLOR);
@@ -130,8 +139,8 @@ function renderResults() {
   const colors = colorMap(rows);
 
   $('resultMeta').textContent = selectedSheet()
-    ? `${selectedSheet()?.title || '-'} 시트 결제자와 업로드한 신청자 파일을 전화번호 기준으로 비교합니다.`
-    : '결제자 시트와 신청자 파일이 모두 준비되면 매칭 결과가 표시됩니다.';
+    ? selectedSheet()?.title || ''
+    : '';
 
   if (!result) {
     $('summaryBadge').textContent = '대기 중';
@@ -185,7 +194,6 @@ function renderResults() {
         <div class="bar-row">
           <div class="bar-name ${row.isOther ? 'danger-text' : ''}">
             ${esc(row.name)}
-            <span>${row.tracking == null ? '트래킹 없음' : `트래킹 ${formatCount(row.tracking)}`}</span>
           </div>
           <div class="bar-track">
             <div class="bar-fill" style="width:${width}%;background:${colors.get(row.name) || '#475569'}"></div>
@@ -285,13 +293,7 @@ function renderHistoryDetail() {
   $('historyDetailBody').innerHTML = `
     <div class="section-head compact-head">
       <div>
-        <p class="eyebrow eyebrow-small">Saved Snapshot</p>
         <h3>${esc(record.payerSheet?.title || '-')}</h3>
-        <p class="section-meta">
-          저장 시각 ${formatDateTime(record.savedAt)}
-          · 신청자 파일 ${esc(record.applicantsFileName || '-')}
-          · 메모 ${esc(record.note || '-')}
-        </p>
       </div>
       <span class="status-pill">${record.countMode === 'uniq' ? '고유 전화번호' : '결제 건수'}</span>
     </div>
@@ -359,12 +361,7 @@ function renderComparison() {
   $('compareBody').innerHTML = `
     <div class="section-head compact-head">
       <div>
-        <p class="eyebrow eyebrow-small">Comparison</p>
         <h3>A/B 기록 비교</h3>
-        <p class="section-meta">
-          A: ${formatDateTime(baseRecord.savedAt)} / ${esc(baseRecord.payerSheet?.title || '-')}
-          · B: ${formatDateTime(targetRecord.savedAt)} / ${esc(targetRecord.payerSheet?.title || '-')}
-        </p>
       </div>
       <div class="compare-badges">
         <span class="status-pill">A ${esc(baseRecord.note || '메모 없음')}</span>
