@@ -1,0 +1,10 @@
+{
+  "name": "classaround-rs-settlement-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Internal dashboard for lecture-level advertising RS settlements powered by Google Sheets and Apps Script",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  }
+}
