@@ -210,6 +210,24 @@ th {
   padding: 16px 18px;
 }
 
+.view-switch-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.view-switch {
+  display: inline-flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.page-view {
+  display: grid;
+  gap: 16px;
+}
+
 .toolbar-grid {
   display: grid;
   grid-template-columns: minmax(180px, 220px) minmax(240px, 1fr) auto;
@@ -312,6 +330,12 @@ th {
   color: var(--text);
   background: #ffffff;
   border-color: var(--line);
+}
+
+.btn.is-active {
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--blue), var(--blue-strong));
+  border-color: transparent;
 }
 
 .btn.btn-small {
@@ -752,6 +776,10 @@ th {
   white-space: nowrap;
 }
 
+.history-open-link.btn.btn-small {
+  min-height: 34px;
+}
+
 .history-table th,
 .history-table td,
 .compact-table th,
@@ -846,6 +874,7 @@ th {
   .section-head,
   .detail-actions,
   .toolbar-actions,
+  .view-switch-card,
   .history-detail-header,
   .section-actions {
     align-items: stretch;

@@ -84,148 +84,164 @@
       </div>
     </section>
 
-    <section class="summary-grid">
-      <article class="summary-card">
-        <p class="summary-label">결제 건수</p>
-        <strong id="summaryTotalCount" class="summary-value">0</strong>
-      </article>
-
-      <article class="summary-card">
-        <p class="summary-label">결제 총액</p>
-        <strong id="summaryTotalAmount" class="summary-value">0원</strong>
-      </article>
-
-      <article class="summary-card">
-        <p class="summary-label">매칭 결제</p>
-        <strong id="summaryMatchedCount" class="summary-value">0</strong>
-      </article>
-
-      <article class="summary-card">
-        <p class="summary-label">매칭 결제 금액</p>
-        <strong id="summaryMatchedAmount" class="summary-value">0원</strong>
-      </article>
-
-      <article class="summary-card accent-card">
-        <p class="summary-label">기타 / 번호 누락</p>
-        <strong id="summaryOtherAmount" class="summary-value">0원</strong>
-      </article>
-    </section>
-
-    <section class="card lecture-list-card">
-      <div class="section-head">
-        <div class="section-title-block">
-          <h2>광고매체별 결제 성과</h2>
-          <p id="resultMeta" class="section-meta"></p>
-        </div>
-        <span id="summaryBadge" class="status-pill">대기 중</span>
+    <section class="card view-switch-card">
+      <div class="view-switch">
+        <button id="dashboardPageBtn" class="btn btn-secondary" type="button">결제 성과</button>
+        <button id="comparisonPageBtn" class="btn btn-ghost" type="button">비교 분석</button>
       </div>
-
-      <div class="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th>유입 경로</th>
-              <th class="num">결제</th>
-              <th class="num">트래킹</th>
-              <th class="num">전환율</th>
-              <th class="num">결제금액 합계</th>
-              <th class="num">금액 비중</th>
-            </tr>
-          </thead>
-          <tbody id="dashTbody">
-            <tr>
-              <td colspan="6" class="empty-row">매칭 실행 후 결과가 표시됩니다.</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="section-actions">
+        <span id="previewRecordStatus" class="status-pill muted">실시간 매칭 보기</span>
+        <button id="clearPreviewBtn" class="btn btn-ghost btn-small" type="button">저장 기록 해제</button>
+        <button id="clearCompareBtn" class="btn btn-ghost btn-small" type="button">A/B 해제</button>
       </div>
     </section>
 
-    <section class="visual-grid">
-      <article class="chart-card">
-        <div class="section-head compact-head">
-          <h3>결제 비중</h3>
-          <span id="donutCaption" class="status-pill muted">-</span>
-        </div>
+    <div id="dashboardPage" class="page-view">
+      <section class="summary-grid">
+        <article class="summary-card">
+          <p class="summary-label">결제 건수</p>
+          <strong id="summaryTotalCount" class="summary-value">0</strong>
+        </article>
 
-        <div class="donut-wrap">
-          <canvas id="donutCanvas" width="320" height="260"></canvas>
-          <div class="donut-center">
-            <strong id="donutTotal" class="donut-center-value">0원</strong>
+        <article class="summary-card">
+          <p class="summary-label">결제 총액</p>
+          <strong id="summaryTotalAmount" class="summary-value">0원</strong>
+        </article>
+
+        <article class="summary-card">
+          <p class="summary-label">매칭 결제</p>
+          <strong id="summaryMatchedCount" class="summary-value">0</strong>
+        </article>
+
+        <article class="summary-card">
+          <p class="summary-label">매칭 결제 금액</p>
+          <strong id="summaryMatchedAmount" class="summary-value">0원</strong>
+        </article>
+
+        <article class="summary-card accent-card">
+          <p class="summary-label">기타 / 번호 누락</p>
+          <strong id="summaryOtherAmount" class="summary-value">0원</strong>
+        </article>
+      </section>
+
+      <section class="card lecture-list-card">
+        <div class="section-head">
+          <div class="section-title-block">
+            <h2>광고매체별 결제 성과</h2>
+            <p id="resultMeta" class="section-meta"></p>
           </div>
+          <span id="summaryBadge" class="status-pill">대기 중</span>
         </div>
 
-        <div id="donutLegend" class="donut-legend"></div>
-      </article>
-
-      <article class="chart-card">
-        <div class="section-head compact-head">
-          <h3>매체별 결제금액</h3>
-          <span id="barsCaption" class="status-pill muted">-</span>
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>유입 경로</th>
+                <th class="num">결제</th>
+                <th class="num">트래킹</th>
+                <th class="num">전환율</th>
+                <th class="num">결제금액 합계</th>
+                <th class="num">금액 비중</th>
+              </tr>
+            </thead>
+            <tbody id="dashTbody">
+              <tr>
+                <td colspan="6" class="empty-row">매칭 실행 후 결과가 표시됩니다.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div id="barsWrap" class="bars"></div>
-      </article>
-    </section>
+      </section>
 
-    <section class="card detail-card">
-      <div class="section-head compact-head">
-        <div class="section-title-block">
-          <h2>전화번호 누락 결제자</h2>
-        </div>
-        <div class="detail-actions">
-          <span id="missingPhoneBadge" class="status-pill">0건</span>
-          <span id="missingPhoneSumBadge" class="status-pill muted">0원</span>
-        </div>
-      </div>
+      <section class="visual-grid">
+        <article class="chart-card">
+          <div class="section-head compact-head">
+            <h3>결제 비중</h3>
+            <span id="donutCaption" class="status-pill muted">-</span>
+          </div>
 
-      <div class="table-card">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 70px">No</th>
-              <th>이름</th>
-              <th class="num">금액</th>
-              <th>원본 전화번호</th>
-              <th>행 번호</th>
-            </tr>
-          </thead>
-          <tbody id="missingPhoneTbody">
-            <tr>
-              <td colspan="5" class="empty-row">결제자 시트를 불러오면 누락 내역이 표시됩니다.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+          <div class="donut-wrap">
+            <canvas id="donutCanvas" width="320" height="260"></canvas>
+            <div class="donut-center">
+              <strong id="donutTotal" class="donut-center-value">0원</strong>
+            </div>
+          </div>
 
-    <section class="comparison-grid">
-      <article class="chart-card comparison-card">
+          <div id="donutLegend" class="donut-legend"></div>
+        </article>
+
+        <article class="chart-card">
+          <div class="section-head compact-head">
+            <h3>매체별 결제금액</h3>
+            <span id="barsCaption" class="status-pill muted">-</span>
+          </div>
+          <div id="barsWrap" class="bars"></div>
+        </article>
+      </section>
+
+      <section class="card detail-card">
         <div class="section-head compact-head">
           <div class="section-title-block">
-            <h3>A 저장 기록</h3>
+            <h2>전화번호 누락 결제자</h2>
+          </div>
+          <div class="detail-actions">
+            <span id="missingPhoneBadge" class="status-pill">0건</span>
+            <span id="missingPhoneSumBadge" class="status-pill muted">0원</span>
           </div>
         </div>
-        <div id="compareBaseBody"></div>
-      </article>
 
-      <article class="chart-card comparison-card">
-        <div class="section-head compact-head">
-          <div class="section-title-block">
-            <h3>유입 비중 비교</h3>
-          </div>
+        <div class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 70px">No</th>
+                <th>이름</th>
+                <th class="num">금액</th>
+                <th>원본 전화번호</th>
+                <th>행 번호</th>
+              </tr>
+            </thead>
+            <tbody id="missingPhoneTbody">
+              <tr>
+                <td colspan="5" class="empty-row">결제자 시트를 불러오면 누락 내역이 표시됩니다.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div id="comparisonMixBody"></div>
-      </article>
+      </section>
+    </div>
 
-      <article class="chart-card comparison-card">
-        <div class="section-head compact-head">
-          <div class="section-title-block">
-            <h3>B 저장 기록</h3>
+    <div id="comparisonPage" class="page-view hidden">
+      <section class="comparison-grid">
+        <article class="chart-card comparison-card">
+          <div class="section-head compact-head">
+            <div class="section-title-block">
+              <h3>A 저장 기록</h3>
+            </div>
           </div>
-        </div>
-        <div id="compareTargetBody"></div>
-      </article>
-    </section>
+          <div id="compareBaseBody"></div>
+        </article>
+
+        <article class="chart-card comparison-card">
+          <div class="section-head compact-head">
+            <div class="section-title-block">
+              <h3>유입 비중 비교</h3>
+            </div>
+          </div>
+          <div id="comparisonMixBody"></div>
+        </article>
+
+        <article class="chart-card comparison-card">
+          <div class="section-head compact-head">
+            <div class="section-title-block">
+              <h3>B 저장 기록</h3>
+            </div>
+          </div>
+          <div id="compareTargetBody"></div>
+        </article>
+      </section>
+    </div>
   </div>
 
   <div id="historyModal" class="modal hidden" aria-hidden="true">
@@ -270,7 +286,7 @@
               <th>메모</th>
               <th class="num">총 결제금액</th>
               <th class="num">매칭 금액</th>
-              <th>선택</th>
+              <th>동작</th>
             </tr>
           </thead>
           <tbody id="historyModalTbody">

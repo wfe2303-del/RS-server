@@ -20,23 +20,6 @@ import {
 
 const UNMATCHED_NAMES = new Set(['기타(미매칭)', '미매칭', '기타']);
 
-function currentRowsForRendering() {
-  if (!appState.results) return [];
-
-  return [
-    ...appState.results.dashboard,
-    {
-      name: '기타(미매칭)',
-      pay: appState.results.otherCount,
-      tracking: null,
-      rate: null,
-      amount: appState.results.otherAmount,
-      amountShare: appState.results.otherAmountShare,
-      isOther: true,
-    },
-  ];
-}
-
 function countModeLabel(mode) {
   return mode === 'uniq' ? '고유 전화번호' : '결제 건수';
 }
@@ -57,6 +40,36 @@ function historyMeta(record) {
     record?.applicantsFileName || '',
     record?.savedAt ? formatDateTime(record.savedAt) : '',
   ].filter(Boolean);
+}
+
+function previewRecord() {
+  return appState.historyRecords[appState.previewRecordId] || null;
+}
+
+function previewSnapshot() {
+  return previewRecord()?.snapshot || null;
+}
+
+function currentRowsForRendering() {
+  const snapshot = previewSnapshot();
+  if (snapshot) {
+    return snapshot.dashboard || [];
+  }
+
+  if (!appState.results) return [];
+
+  return [
+    ...appState.results.dashboard,
+    {
+      name: '기타(미매칭)',
+      pay: appState.results.otherCount,
+      tracking: null,
+      rate: null,
+      amount: appState.results.otherAmount,
+      amountShare: appState.results.otherAmountShare,
+      isOther: true,
+    },
+  ];
 }
 
 function filteredSheetCatalog() {
@@ -139,20 +152,48 @@ function shareWidth(value) {
 }
 
 function recordSelectionSummary() {
+  const preview = previewRecord();
   const baseRecord = appState.historyRecords[appState.compareBaseId];
   const targetRecord = appState.historyRecords[appState.compareTargetId];
+  const previewLabel = preview ? historyLabel(preview, '보기') : '미선택';
   const baseLabel = baseRecord ? historyLabel(baseRecord, '기록 A') : '미선택';
   const targetLabel = targetRecord ? historyLabel(targetRecord, '기록 B') : '미선택';
-  return `A ${baseLabel} / B ${targetLabel}`;
+  return `보기 ${previewLabel} / A ${baseLabel} / B ${targetLabel}`;
+}
+
+function dashboardSource() {
+  const snapshot = previewSnapshot();
+  if (snapshot) {
+    return {
+      type: 'snapshot',
+      snapshot,
+      record: previewRecord(),
+    };
+  }
+
+  return {
+    type: 'live',
+    results: appState.results,
+    payers: appState.payers,
+    sheet: selectedSheet(),
+  };
 }
 
 function renderHeader() {
   document.title = APP_TITLE;
 
-  const refreshButton = $('refreshBtn');
-  if (refreshButton) {
-    refreshButton.disabled = appState.loadingCatalog || appState.loadingSheet;
-  }
+  $('refreshBtn').disabled = appState.loadingCatalog || appState.loadingSheet;
+  $('dashboardPageBtn').classList.toggle('is-active', appState.pageMode === 'dashboard');
+  $('comparisonPageBtn').classList.toggle('is-active', appState.pageMode === 'compare');
+  $('dashboardPage').classList.toggle('hidden', appState.pageMode !== 'dashboard');
+  $('comparisonPage').classList.toggle('hidden', appState.pageMode !== 'compare');
+
+  const preview = previewRecord();
+  $('previewRecordStatus').textContent = preview
+    ? `저장 기록 보기: ${historyLabel(preview, '저장 기록')}`
+    : '실시간 매칭 보기';
+  $('clearPreviewBtn').disabled = !preview;
+  $('clearCompareBtn').disabled = !appState.compareBaseId && !appState.compareTargetId;
 
   document.querySelectorAll('.history-sheet-link').forEach((link) => {
     link.href = HISTORY_SHEET_URL;
@@ -161,8 +202,6 @@ function renderHeader() {
 
 function renderErrorBanner() {
   const banner = $('errorBanner');
-  if (!banner) return;
-
   if (!appState.error) {
     banner.classList.add('hidden');
     banner.textContent = '';
@@ -178,22 +217,20 @@ function renderControls() {
   const sheetSearchInput = $('sheetSearchInput');
   const select = $('sheetSelect');
 
-  if (sheetSearchInput && sheetSearchInput.value !== appState.sheetQuery) {
+  if (sheetSearchInput.value !== appState.sheetQuery) {
     sheetSearchInput.value = appState.sheetQuery;
   }
 
-  if (select) {
-    select.innerHTML = catalog.length
-      ? catalog.map((sheet) => `<option value="${sheet.sheetId}">${esc(sheet.title)}</option>`).join('')
-      : '<option value="">검색 결과 없음</option>';
+  select.innerHTML = catalog.length
+    ? catalog.map((sheet) => `<option value="${sheet.sheetId}">${esc(sheet.title)}</option>`).join('')
+    : '<option value="">검색 결과 없음</option>';
 
-    select.disabled = !catalog.length;
+  select.disabled = !catalog.length;
 
-    if (catalog.some((sheet) => String(sheet.sheetId) === String(appState.selectedSheetId))) {
-      select.value = String(appState.selectedSheetId);
-    } else if (!appState.sheetQuery && catalog[0]) {
-      select.value = String(catalog[0].sheetId);
-    }
+  if (catalog.some((sheet) => String(sheet.sheetId) === String(appState.selectedSheetId))) {
+    select.value = String(appState.selectedSheetId);
+  } else if (!appState.sheetQuery && catalog[0]) {
+    select.value = String(catalog[0].sheetId);
   }
 
   $('payersBadge').textContent = appState.payers
@@ -216,24 +253,40 @@ function renderControls() {
 }
 
 function renderSummaryCards() {
-  const payers = appState.payers;
-  const results = appState.results;
+  const source = dashboardSource();
 
-  const totalCount = results
-    ? results.totalPayCount
-    : payers
-      ? payers.txEntries.length + (payers.missingPhoneCount || 0)
-      : 0;
+  let totalCount = 0;
+  let totalAmount = 0;
+  let matchedCount = 0;
+  let matchedAmount = 0;
+  let otherAmount = 0;
 
-  const totalAmount = results
-    ? results.totalPayAmount
-    : payers
-      ? [...payers.txEntries].reduce((sum, entry) => sum + (entry.amount || 0), 0) + (payers.missingPhoneAmountSum || 0)
-      : 0;
+  if (source.type === 'snapshot') {
+    totalCount = source.snapshot.summary?.totalPayCount || 0;
+    totalAmount = source.snapshot.summary?.totalPayAmount || 0;
+    matchedCount = source.snapshot.summary?.matchedCount || 0;
+    matchedAmount = source.snapshot.summary?.matchedAmount || 0;
+    otherAmount = source.snapshot.summary?.otherAmount || 0;
+  } else {
+    const payers = source.payers;
+    const results = source.results;
 
-  const matchedCount = results ? results.totalPayCount - results.otherCount : 0;
-  const matchedAmount = results ? results.totalPayAmount - results.otherAmount : 0;
-  const otherAmount = results ? results.otherAmount : 0;
+    totalCount = results
+      ? results.totalPayCount
+      : payers
+        ? payers.txEntries.length + (payers.missingPhoneCount || 0)
+        : 0;
+
+    totalAmount = results
+      ? results.totalPayAmount
+      : payers
+        ? [...payers.txEntries].reduce((sum, entry) => sum + (entry.amount || 0), 0) + (payers.missingPhoneAmountSum || 0)
+        : 0;
+
+    matchedCount = results ? results.totalPayCount - results.otherCount : 0;
+    matchedAmount = results ? results.totalPayAmount - results.otherAmount : 0;
+    otherAmount = results ? results.otherAmount : 0;
+  }
 
   $('summaryTotalCount').textContent = formatCount(totalCount);
   $('summaryTotalAmount').textContent = formatKRW(totalAmount);
@@ -243,11 +296,72 @@ function renderSummaryCards() {
 }
 
 function renderResults() {
-  const result = appState.results;
+  const source = dashboardSource();
   const rows = currentRowsForRendering();
   const colors = colorMap(rows);
 
-  $('resultMeta').textContent = selectedSheet()?.title || '';
+  if (source.type === 'snapshot') {
+    const record = source.record;
+    const snapshot = source.snapshot;
+
+    $('resultMeta').textContent = `${record?.payerSheet?.title || ''} · ${formatDateTime(record?.savedAt)}`;
+    $('summaryBadge').textContent = `저장 기록 보기 · 총액 ${formatKRW(snapshot.summary?.totalPayAmount || 0)}`;
+    $('donutCaption').textContent = `유입 경로 ${formatCount(rows.length)}개`;
+    $('barsCaption').textContent = '저장 기록 기준';
+    $('donutTotal').textContent = formatKRW(snapshot.summary?.totalPayAmount || 0);
+
+    $('dashTbody').innerHTML = rows.length
+      ? rows.map((row) => `
+          <tr>
+            <td class="${row.isOther ? 'danger-text' : ''}">${esc(row.name)}</td>
+            <td class="num">${formatCount(row.pay || 0)}</td>
+            <td class="num">${row.tracking == null ? '-' : formatCount(row.tracking)}</td>
+            <td class="num">${row.rate == null ? '-' : formatPercent(row.rate)}</td>
+            <td class="num">${formatKRW(row.amount || 0)}</td>
+            <td class="num ${row.isOther ? 'danger-text' : ''}">${formatPercent(row.amountShare || 0)}</td>
+          </tr>
+        `).join('')
+      : '<tr><td colspan="6" class="empty-row">표시할 결과가 없습니다.</td></tr>';
+
+    drawDonut(
+      $('donutCanvas'),
+      rows.map((row) => ({ name: row.name, amount: row.amount || 0 })),
+      snapshot.summary?.totalPayAmount || 0,
+      colors,
+    );
+
+    $('donutLegend').innerHTML = rows.length
+      ? rows.map((row) => `
+          <div class="legend-item">
+            <span class="legend-swatch" style="background:${colors.get(row.name) || '#475569'}"></span>
+            <span class="legend-name ${row.isOther ? 'danger-text' : ''}">${esc(row.name)}</span>
+            <span class="legend-value">${formatKRW(row.amount || 0)} (${formatPercent(row.amountShare || 0)})</span>
+          </div>
+        `).join('')
+      : '<div class="empty-row">표시할 결과가 없습니다.</div>';
+
+    const maxAmount = Math.max(1, ...rows.map((row) => row.amount || 0), 0);
+    $('barsWrap').innerHTML = rows.length
+      ? [...rows]
+          .sort((left, right) => (right.amount || 0) - (left.amount || 0))
+          .map((row) => {
+            const width = Math.max(2, Math.round(((row.amount || 0) / maxAmount) * 100));
+            return `
+              <div class="bar-row">
+                <div class="bar-name ${row.isOther ? 'danger-text' : ''}">${esc(row.name)}</div>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:${width}%;background:${colors.get(row.name) || '#475569'}"></div>
+                </div>
+                <div class="bar-value ${row.isOther ? 'danger-text' : ''}">${formatKRW(row.amount || 0)}</div>
+              </div>
+            `;
+          }).join('')
+      : '<div class="empty-row">표시할 결과가 없습니다.</div>';
+    return;
+  }
+
+  const result = source.results;
+  $('resultMeta').textContent = source.sheet?.title || '';
 
   if (!result) {
     $('summaryBadge').textContent = '대기 중';
@@ -310,12 +424,16 @@ function renderResults() {
 }
 
 function renderMissingPhoneTable() {
-  const rows = appState.payers?.missingPhoneRows || [];
+  const snapshot = previewSnapshot();
+  const rows = snapshot ? (snapshot.missingPhoneRows || []) : (appState.payers?.missingPhoneRows || []);
+  const amountSum = snapshot
+    ? (snapshot.summary?.missingPhoneAmountSum || 0)
+    : (appState.payers?.missingPhoneAmountSum || 0);
 
   $('missingPhoneBadge').textContent = `${formatCount(rows.length)}건`;
-  $('missingPhoneSumBadge').textContent = formatKRW(appState.payers?.missingPhoneAmountSum || 0);
+  $('missingPhoneSumBadge').textContent = formatKRW(amountSum);
 
-  if (!appState.payers) {
+  if (!snapshot && !appState.payers) {
     $('missingPhoneTbody').innerHTML = '<tr><td colspan="5" class="empty-row">결제자 시트를 불러오면 누락 내역이 표시됩니다.</td></tr>';
     return;
   }
@@ -331,7 +449,7 @@ function renderMissingPhoneTable() {
       <td>${esc(row.name || '(이름 없음)')}</td>
       <td class="num">${formatKRW(row.amount || 0)}</td>
       <td>${esc(row.rawPhone || '')}</td>
-      <td>${formatCount(row.rowNo)}</td>
+      <td>${formatCount(row.rowNo || index + 1)}</td>
     </tr>
   `).join('');
 }
@@ -481,9 +599,7 @@ function renderHistoryModal() {
     searchInput.value = appState.historySearchQuery;
   }
 
-  if (selection) {
-    selection.textContent = recordSelectionSummary();
-  }
+  selection.textContent = recordSelectionSummary();
 
   if (appState.loadingHistory && !rows.length) {
     $('historyModalTbody').innerHTML = '<tr><td colspan="7" class="empty-row">저장 기록을 불러오는 중입니다.</td></tr>';
@@ -496,11 +612,12 @@ function renderHistoryModal() {
   }
 
   $('historyModalTbody').innerHTML = rows.map((record) => {
+    const isPreview = appState.previewRecordId === record.recordId;
     const isBase = appState.compareBaseId === record.recordId;
     const isTarget = appState.compareTargetId === record.recordId;
 
     return `
-      <tr class="${isBase || isTarget ? 'history-row is-selected' : 'history-row'}">
+      <tr class="${isPreview || isBase || isTarget ? 'history-row is-selected' : 'history-row'}">
         <td>${formatDateTime(record.savedAt)}</td>
         <td>${esc(record.payerSheet?.title || '-')}</td>
         <td>${esc(record.applicantsFileName || '-')}</td>
@@ -509,11 +626,14 @@ function renderHistoryModal() {
         <td class="num">${formatKRW(record.summary?.matchedAmount || 0)}</td>
         <td>
           <div class="action-row">
-            <button type="button" class="btn btn-secondary btn-small" data-history-action="pick-base" data-record-id="${record.recordId}">
-              ${isBase ? 'A 선택됨' : 'A 선택'}
+            <button type="button" class="btn btn-secondary btn-small" data-history-action="${isPreview ? 'clear-preview' : 'preview'}" data-record-id="${record.recordId}">
+              ${isPreview ? '보기 해제' : '보기'}
             </button>
-            <button type="button" class="btn btn-ghost btn-small" data-history-action="pick-target" data-record-id="${record.recordId}">
-              ${isTarget ? 'B 선택됨' : 'B 선택'}
+            <button type="button" class="btn btn-ghost btn-small" data-history-action="${isBase ? 'clear-base' : 'pick-base'}" data-record-id="${record.recordId}">
+              ${isBase ? 'A 해제' : 'A 선택'}
+            </button>
+            <button type="button" class="btn btn-ghost btn-small" data-history-action="${isTarget ? 'clear-target' : 'pick-target'}" data-record-id="${record.recordId}">
+              ${isTarget ? 'B 해제' : 'B 선택'}
             </button>
           </div>
         </td>

@@ -1,6 +1,7 @@
 export const APP_TITLE = '무료강의 결제 매칭 보드';
 export const API_BASE = window.__RS_APP_CONFIG__?.apiBaseUrl || '/api/settlements';
 export const STORAGE_KEY = 'classaround-rs-matching-v4';
+export const HISTORY_SPREADSHEET_ID = '1c4U9TwFK9wNmSmiN6lgl9iaQlaC57x7DcscfLtzb-pA';
 export const HISTORY_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1c4U9TwFK9wNmSmiN6lgl9iaQlaC57x7DcscfLtzb-pA/edit?gid=549932056#gid=549932056';
 
 export const PAYERS_RULES = {

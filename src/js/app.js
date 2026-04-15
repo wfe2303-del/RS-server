@@ -5,6 +5,7 @@ import {
   fetchSheetGrid,
   saveHistorySnapshot,
 } from './api.js';
+import { HISTORY_SPREADSHEET_ID } from './config.js';
 import { createHistorySnapshot } from './history.js';
 import { computeResults, parseApplicants, parsePayersFromGrid } from './parsers.js';
 import {
@@ -16,6 +17,15 @@ import {
 } from './state.js';
 import { $, readWorkbookGrid } from './utils.js';
 import { renderAll } from './render.js';
+
+function assertHistorySpreadsheet(payload) {
+  const backendSpreadsheetId = String(payload?.spreadsheetId || '').trim();
+  if (backendSpreadsheetId && backendSpreadsheetId !== HISTORY_SPREADSHEET_ID) {
+    throw new Error(
+      `현재 백엔드가 저장 기록을 다른 시트(${backendSpreadsheetId})에 쓰고 있습니다. Apps Script가 아직 예전 배포본입니다. 새 Code.gs로 다시 배포해 주세요.`,
+    );
+  }
+}
 
 async function loadCatalog() {
   appState.loadingCatalog = true;
@@ -114,6 +124,7 @@ async function ensureHistoryRecord(recordId) {
   }
 
   const payload = await fetchHistoryDetail(recordId);
+  assertHistorySpreadsheet(payload);
   if (payload.record) {
     rememberHistoryRecord(payload.record);
     appState.generatedAt = payload.generatedAt || appState.generatedAt;
@@ -128,6 +139,7 @@ async function loadHistoryList() {
 
   try {
     const payload = await fetchHistoryList();
+    assertHistorySpreadsheet(payload);
     appState.historyList = payload.records || [];
     appState.generatedAt = payload.generatedAt || appState.generatedAt;
 
@@ -136,16 +148,20 @@ async function loadHistoryList() {
       rememberHistoryRecord(previous ? { ...previous, ...record } : record);
     });
 
+    if (!appState.historyList.some((record) => record.recordId === appState.previewRecordId)) {
+      appState.previewRecordId = '';
+    }
+
     if (!appState.historyList.some((record) => record.recordId === appState.compareBaseId)) {
-      appState.compareBaseId = appState.historyList[0]?.recordId || '';
+      appState.compareBaseId = '';
     }
 
     if (!appState.historyList.some((record) => record.recordId === appState.compareTargetId)) {
-      appState.compareTargetId = appState.historyList.find((record) => record.recordId !== appState.compareBaseId)?.recordId || '';
+      appState.compareTargetId = '';
     }
 
-    const compareIds = [...new Set([appState.compareBaseId, appState.compareTargetId].filter(Boolean))];
-    for (const recordId of compareIds) {
+    const historyIds = [...new Set([appState.previewRecordId, appState.compareBaseId, appState.compareTargetId].filter(Boolean))];
+    for (const recordId of historyIds) {
       await ensureHistoryRecord(recordId);
     }
   } catch (error) {
@@ -166,8 +182,23 @@ async function pickHistoryForCompare(slot, recordId) {
     } else {
       appState.compareTargetId = recordId;
     }
+    appState.pageMode = 'compare';
   } catch (error) {
     appState.error = error.message || '비교 기록을 불러오지 못했습니다.';
+  }
+
+  renderAll();
+}
+
+async function previewHistory(recordId) {
+  try {
+    appState.error = '';
+    await ensureHistoryRecord(recordId);
+    appState.previewRecordId = recordId;
+    appState.pageMode = 'dashboard';
+    appState.historyModalOpen = false;
+  } catch (error) {
+    appState.error = error.message || '저장 기록을 불러오지 못했습니다.';
   }
 
   renderAll();
@@ -196,15 +227,12 @@ async function saveCurrentHistory() {
     });
 
     const payload = await saveHistorySnapshot(snapshot);
+    assertHistorySpreadsheet(payload);
     if (payload.record) {
       rememberHistoryRecord(payload.record);
       appState.lastSavedRecordId = payload.record.recordId;
-
-      if (!appState.compareBaseId) {
-        appState.compareBaseId = payload.record.recordId;
-      } else {
-        appState.compareTargetId = payload.record.recordId;
-      }
+      appState.previewRecordId = payload.record.recordId;
+      appState.pageMode = 'dashboard';
     }
 
     $('historyNote').value = '';
@@ -218,6 +246,16 @@ async function saveCurrentHistory() {
 }
 
 function bindEvents() {
+  $('dashboardPageBtn').addEventListener('click', () => {
+    appState.pageMode = 'dashboard';
+    renderAll();
+  });
+
+  $('comparisonPageBtn').addEventListener('click', () => {
+    appState.pageMode = 'compare';
+    renderAll();
+  });
+
   $('refreshBtn').addEventListener('click', async () => {
     await loadCatalog();
     await loadSelectedSheet();
@@ -252,6 +290,18 @@ function bindEvents() {
 
   $('saveHistoryBtn').addEventListener('click', async () => {
     await saveCurrentHistory();
+  });
+
+  $('clearPreviewBtn').addEventListener('click', () => {
+    appState.previewRecordId = '';
+    appState.pageMode = 'dashboard';
+    renderAll();
+  });
+
+  $('clearCompareBtn').addEventListener('click', () => {
+    appState.compareBaseId = '';
+    appState.compareTargetId = '';
+    renderAll();
   });
 
   $('openHistoryModalBtn').addEventListener('click', () => {
@@ -296,13 +346,36 @@ function bindEvents() {
     const recordId = button.getAttribute('data-record-id');
     if (!recordId) return;
 
+    if (action === 'preview') {
+      await previewHistory(recordId);
+      return;
+    }
+
+    if (action === 'clear-preview') {
+      appState.previewRecordId = '';
+      renderAll();
+      return;
+    }
+
     if (action === 'pick-base') {
       await pickHistoryForCompare('base', recordId);
       return;
     }
 
+    if (action === 'clear-base') {
+      appState.compareBaseId = '';
+      renderAll();
+      return;
+    }
+
     if (action === 'pick-target') {
       await pickHistoryForCompare('target', recordId);
+      return;
+    }
+
+    if (action === 'clear-target') {
+      appState.compareTargetId = '';
+      renderAll();
     }
   });
 }
