@@ -1,3 +1,36 @@
+const UNMATCHED_NAMES = new Set(['기타(미매칭)', '미매칭', '기타']);
+
+function normalizeMediaName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+function bucketKeyForRow(row) {
+  if (row?.isOther || UNMATCHED_NAMES.has(String(row?.name || '').trim())) {
+    return 'unmatched';
+  }
+
+  const normalized = normalizeMediaName(row?.name);
+  if (normalized.includes('meta') || normalized.includes('메타')) {
+    return 'meta';
+  }
+
+  if (normalized.includes('google') || normalized.includes('구글')) {
+    return 'google';
+  }
+
+  return 'others';
+}
+
+function emptyBucket(key, label) {
+  return {
+    key,
+    label,
+    amount: 0,
+    pay: 0,
+    share: 0,
+  };
+}
+
 export function createHistorySnapshot({
   sheet,
   applicantsFileName,
@@ -59,6 +92,28 @@ export function createHistorySnapshot({
   };
 }
 
+export function buildBucketSummary(snapshot) {
+  const totalAmount = Number(snapshot?.summary?.totalPayAmount || 0);
+  const bucketMap = new Map([
+    ['google', emptyBucket('google', '구글')],
+    ['meta', emptyBucket('meta', '메타')],
+    ['others', emptyBucket('others', '나머지')],
+    ['unmatched', emptyBucket('unmatched', '미매칭')],
+  ]);
+
+  (snapshot?.dashboard || []).forEach((row) => {
+    const key = bucketKeyForRow(row);
+    const bucket = bucketMap.get(key);
+    bucket.amount += Number(row.amount || 0);
+    bucket.pay += Number(row.pay || 0);
+  });
+
+  return [...bucketMap.values()].map((bucket) => ({
+    ...bucket,
+    share: totalAmount ? bucket.amount / totalAmount : 0,
+  }));
+}
+
 export function compareSnapshots(baseSnapshot, targetSnapshot) {
   if (!baseSnapshot || !targetSnapshot) {
     return null;
@@ -80,8 +135,6 @@ export function compareSnapshots(baseSnapshot, targetSnapshot) {
       basePay: Number(baseRow.pay || 0),
       targetPay: Number(targetRow.pay || 0),
       payDiff: Number(targetRow.pay || 0) - Number(baseRow.pay || 0),
-      baseTracking: baseRow.tracking == null ? null : Number(baseRow.tracking || 0),
-      targetTracking: targetRow.tracking == null ? null : Number(targetRow.tracking || 0),
       baseRate: baseRow.rate == null ? null : Number(baseRow.rate || 0),
       targetRate: targetRow.rate == null ? null : Number(targetRow.rate || 0),
       rateDiff:
@@ -91,10 +144,28 @@ export function compareSnapshots(baseSnapshot, targetSnapshot) {
     };
   }).sort((left, right) => Math.abs(right.amountDiff) - Math.abs(left.amountDiff));
 
+  const baseBuckets = buildBucketSummary(baseSnapshot);
+  const targetBuckets = buildBucketSummary(targetSnapshot);
+  const targetBucketMap = new Map(targetBuckets.map((bucket) => [bucket.key, bucket]));
+  const bucketRows = baseBuckets.map((bucket) => {
+    const target = targetBucketMap.get(bucket.key) || emptyBucket(bucket.key, bucket.label);
+    return {
+      key: bucket.key,
+      label: bucket.label,
+      baseAmount: bucket.amount,
+      targetAmount: target.amount,
+      amountDiff: target.amount - bucket.amount,
+      baseShare: bucket.share,
+      targetShare: target.share,
+      shareDiff: target.share - bucket.share,
+    };
+  });
+
   return {
     baseSnapshot,
     targetSnapshot,
     rows,
+    bucketRows,
     summary: {
       totalPayCountDiff:
         Number(targetSnapshot.summary?.totalPayCount || 0) - Number(baseSnapshot.summary?.totalPayCount || 0),

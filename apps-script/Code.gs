@@ -1,10 +1,12 @@
 const SETTINGS = {
-  spreadsheetId: '1qclrbo3_VG-sSNIqMW4j1juzwP3nq_ZaT-y1z6WLafc',
-  defaultSheetId: 1243994268,
+  payersSpreadsheetId: '1qclrbo3_VG-sSNIqMW4j1juzwP3nq_ZaT-y1z6WLafc',
+  defaultPayerSheetId: 1243994268,
+  historySpreadsheetId: '1c4U9TwFK9wNmSmiN6lgl9iaQlaC57x7DcscfLtzb-pA',
+  historySheetId: 549932056,
+  historySheetName: '매칭기록',
   apiToken: 'PUT_LONG_RANDOM_TOKEN_HERE',
   payersRangeEndColumn: 12, // A:L
   listHiddenSheets: false,
-  historySheetName: '_매칭기록',
   historyHeaders: [
     'recordId',
     'savedAt',
@@ -34,8 +36,9 @@ function doGet(e) {
       return jsonResponse_({
         ok: true,
         generatedAt: new Date().toISOString(),
-        spreadsheetId: SETTINGS.spreadsheetId,
-        defaultSheetId: SETTINGS.defaultSheetId,
+        payersSpreadsheetId: SETTINGS.payersSpreadsheetId,
+        historySpreadsheetId: SETTINGS.historySpreadsheetId,
+        defaultSheetId: SETTINGS.defaultPayerSheetId,
       });
     }
 
@@ -86,28 +89,28 @@ function doPost(e) {
 }
 
 function buildCatalog_() {
-  const spreadsheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId);
+  const spreadsheet = SpreadsheetApp.openById(SETTINGS.payersSpreadsheetId);
   const sheets = spreadsheet.getSheets()
-    .filter((sheet) => shouldIncludeSheet_(sheet))
+    .filter((sheet) => shouldIncludePayerSheet_(sheet))
     .map((sheet) => ({
       sheetId: sheet.getSheetId(),
       title: sheet.getName(),
     }));
 
-  const defaultSheet = sheets.filter((sheet) => String(sheet.sheetId) === String(SETTINGS.defaultSheetId))[0] || sheets[0] || null;
+  const defaultSheet = sheets.filter((sheet) => String(sheet.sheetId) === String(SETTINGS.defaultPayerSheetId))[0] || sheets[0] || null;
 
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
-    spreadsheetId: SETTINGS.spreadsheetId,
+    spreadsheetId: SETTINGS.payersSpreadsheetId,
     defaultSheetId: defaultSheet ? defaultSheet.sheetId : '',
-    sheets: sheets,
+    sheets,
   };
 }
 
 function buildSheetGrid_(params) {
-  const spreadsheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId);
-  const sheet = findSheet_(spreadsheet, params.sheetId, params.sheetTitle);
+  const spreadsheet = SpreadsheetApp.openById(SETTINGS.payersSpreadsheetId);
+  const sheet = findPayerSheet_(spreadsheet, params.sheetId, params.sheetTitle);
   if (!sheet) {
     throw new Error('선택한 결제자 시트를 찾지 못했습니다.');
   }
@@ -119,13 +122,13 @@ function buildSheetGrid_(params) {
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
-    spreadsheetId: SETTINGS.spreadsheetId,
+    spreadsheetId: SETTINGS.payersSpreadsheetId,
     sheet: {
       sheetId: sheet.getSheetId(),
       title: sheet.getName(),
       rowCount: grid.length,
     },
-    grid: grid,
+    grid,
   };
 }
 
@@ -137,6 +140,7 @@ function buildHistoryList_(params) {
     return {
       ok: true,
       generatedAt: new Date().toISOString(),
+      spreadsheetId: SETTINGS.historySpreadsheetId,
       records: [],
     };
   }
@@ -152,7 +156,8 @@ function buildHistoryList_(params) {
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
-    records: records,
+    spreadsheetId: SETTINGS.historySpreadsheetId,
+    records,
   };
 }
 
@@ -175,6 +180,7 @@ function buildHistoryDetail_(params) {
   return {
     ok: true,
     generatedAt: new Date().toISOString(),
+    spreadsheetId: SETTINGS.historySpreadsheetId,
     record: historyRecordFromRow_(rowValues, true),
   };
 }
@@ -187,8 +193,8 @@ function saveHistory_(payload) {
   const summary = snapshot.summary || {};
 
   const storedSnapshot = Object.assign({}, snapshot, {
-    recordId: recordId,
-    savedAt: savedAt,
+    recordId,
+    savedAt,
   });
 
   const row = [
@@ -213,15 +219,12 @@ function saveHistory_(payload) {
   return {
     ok: true,
     generatedAt: savedAt,
+    spreadsheetId: SETTINGS.historySpreadsheetId,
     record: historyRecordFromRow_(row, true),
   };
 }
 
-function shouldIncludeSheet_(sheet) {
-  if (sheet.getName() === SETTINGS.historySheetName) {
-    return false;
-  }
-
+function shouldIncludePayerSheet_(sheet) {
   if (SETTINGS.listHiddenSheets) {
     return true;
   }
@@ -233,12 +236,12 @@ function shouldIncludeSheet_(sheet) {
   }
 }
 
-function findSheet_(spreadsheet, sheetId, sheetTitle) {
+function findPayerSheet_(spreadsheet, sheetId, sheetTitle) {
   const idText = stringValue_(sheetId);
   if (idText) {
     const targetId = Number(idText);
     const byId = spreadsheet.getSheets().filter((sheet) => sheet.getSheetId() === targetId)[0];
-    if (byId && shouldIncludeSheet_(byId)) {
+    if (byId && shouldIncludePayerSheet_(byId)) {
       return byId;
     }
   }
@@ -246,23 +249,26 @@ function findSheet_(spreadsheet, sheetId, sheetTitle) {
   const titleText = stringValue_(sheetTitle);
   if (titleText) {
     const byTitle = spreadsheet.getSheetByName(titleText);
-    if (byTitle && shouldIncludeSheet_(byTitle)) {
+    if (byTitle && shouldIncludePayerSheet_(byTitle)) {
       return byTitle;
     }
   }
 
   return spreadsheet.getSheets().filter((sheet) => (
-    shouldIncludeSheet_(sheet) && String(sheet.getSheetId()) === String(SETTINGS.defaultSheetId)
-  ))[0] || spreadsheet.getSheets().filter(shouldIncludeSheet_)[0] || null;
+    shouldIncludePayerSheet_(sheet) && String(sheet.getSheetId()) === String(SETTINGS.defaultPayerSheetId)
+  ))[0] || spreadsheet.getSheets().filter(shouldIncludePayerSheet_)[0] || null;
+}
+
+function getHistorySpreadsheet_() {
+  return SpreadsheetApp.openById(SETTINGS.historySpreadsheetId);
 }
 
 function getHistorySheet_(createIfMissing) {
-  const spreadsheet = SpreadsheetApp.openById(SETTINGS.spreadsheetId);
-  let sheet = spreadsheet.getSheetByName(SETTINGS.historySheetName);
+  const spreadsheet = getHistorySpreadsheet_();
+  let sheet = findHistorySheet_(spreadsheet);
 
   if (!sheet && createIfMissing) {
     sheet = spreadsheet.insertSheet(SETTINGS.historySheetName);
-    sheet.hideSheet();
   }
 
   if (sheet) {
@@ -272,15 +278,35 @@ function getHistorySheet_(createIfMissing) {
   return sheet;
 }
 
+function findHistorySheet_(spreadsheet) {
+  const id = Number(SETTINGS.historySheetId || 0);
+  if (id) {
+    const byId = spreadsheet.getSheets().filter((sheet) => sheet.getSheetId() === id)[0];
+    if (byId) {
+      return byId;
+    }
+  }
+
+  const name = stringValue_(SETTINGS.historySheetName);
+  return name ? spreadsheet.getSheetByName(name) : null;
+}
+
 function ensureHistoryHeaders_(sheet) {
   const width = SETTINGS.historyHeaders.length;
-  const existing = sheet.getRange(1, 1, 1, width).getValues()[0];
-  const needsHeader = SETTINGS.historyHeaders.some((header, index) => stringValue_(existing[index]) !== header);
+  const headerRange = sheet.getRange(1, 1, 1, width);
+  const existing = headerRange.getValues()[0];
+  const rowHasAnyValue = existing.some((value) => stringValue_(value));
+  const headersMatch = SETTINGS.historyHeaders.every((header, index) => stringValue_(existing[index]) === header);
 
-  if (needsHeader) {
-    sheet.getRange(1, 1, 1, width).setValues([SETTINGS.historyHeaders]);
-    sheet.setFrozenRows(1);
+  if (!rowHasAnyValue || headersMatch) {
+    if (!headersMatch) {
+      headerRange.setValues([SETTINGS.historyHeaders]);
+      sheet.setFrozenRows(1);
+    }
+    return;
   }
+
+  throw new Error('기록 저장용 시트 첫 행이 앱 형식과 다릅니다. 지정한 시트를 비우거나 전용 탭을 만들어 주세요.');
 }
 
 function findHistoryRowValues_(sheet, recordId) {

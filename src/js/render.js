@@ -1,4 +1,10 @@
-import { APP_TITLE, OTHER_COLOR, PALETTE } from './config.js';
+import {
+  APP_TITLE,
+  BUCKET_COLORS,
+  HISTORY_SHEET_URL,
+  OTHER_COLOR,
+  PALETTE,
+} from './config.js';
 import { compareSnapshots } from './history.js';
 import { appState, selectedSheet } from './state.js';
 import { drawDonut } from './charts.js';
@@ -13,6 +19,8 @@ import {
   formatKRW,
   formatPercent,
 } from './utils.js';
+
+const UNMATCHED_NAMES = new Set(['기타(미매칭)', '미매칭', '기타']);
 
 function currentRowsForRendering() {
   if (!appState.results) return [];
@@ -31,7 +39,46 @@ function currentRowsForRendering() {
   ];
 }
 
-function colorForIndex(index) {
+function countModeLabel(mode) {
+  return mode === 'uniq' ? '고유 전화번호' : '결제 건수';
+}
+
+function deltaClass(value) {
+  if (value > 0) return 'delta-positive';
+  if (value < 0) return 'delta-negative';
+  return '';
+}
+
+function historyLabel(record, fallback) {
+  return record?.note?.trim() || record?.payerSheet?.title || fallback;
+}
+
+function historyMeta(record) {
+  return [
+    record?.payerSheet?.title || '',
+    record?.applicantsFileName || '',
+    record?.savedAt ? formatDateTime(record.savedAt) : '',
+  ].filter(Boolean);
+}
+
+function preferredColorForRow(row) {
+  if (row?.isOther || UNMATCHED_NAMES.has(String(row?.name || '').trim())) {
+    return OTHER_COLOR;
+  }
+
+  const normalized = String(row?.name || '').trim().toLowerCase();
+  if (normalized.includes('google') || normalized.includes('구글')) {
+    return BUCKET_COLORS.google;
+  }
+
+  if (normalized.includes('meta') || normalized.includes('메타')) {
+    return BUCKET_COLORS.meta;
+  }
+
+  return '';
+}
+
+function fallbackColor(index) {
   if (PALETTE[index]) {
     return PALETTE[index];
   }
@@ -42,27 +89,57 @@ function colorForIndex(index) {
 
 function colorMap(rows) {
   const map = new Map();
+  const usedColors = new Set();
+  let fallbackIndex = 0;
+
+  rows.forEach((row) => {
+    const preferred = preferredColorForRow(row);
+    if (preferred) {
+      map.set(row.name, preferred);
+      usedColors.add(preferred);
+    }
+  });
 
   rows
-    .filter((row) => !row.isOther)
-    .forEach((row, index) => {
-      map.set(row.name, colorForIndex(index));
+    .filter((row) => !map.has(row.name))
+    .forEach((row) => {
+      let color = fallbackColor(fallbackIndex);
+
+      while (usedColors.has(color)) {
+        fallbackIndex += 1;
+        color = fallbackColor(fallbackIndex);
+      }
+
+      map.set(row.name, color);
+      usedColors.add(color);
+      fallbackIndex += 1;
     });
 
-  map.set('기타(미매칭)', OTHER_COLOR);
   return map;
+}
+
+function shareWidth(value) {
+  return `${Math.max(0, Math.min(100, Number(value || 0) * 100)).toFixed(1)}%`;
 }
 
 function renderHeader() {
   document.title = APP_TITLE;
-  $('syncBadge').textContent = appState.generatedAt
-    ? `마지막 동기화 ${formatDateTime(appState.generatedAt)}`
-    : '연결 대기 중';
-  $('refreshBtn').disabled = appState.loadingCatalog || appState.loadingSheet;
+
+  const refreshButton = $('refreshBtn');
+  if (refreshButton) {
+    refreshButton.disabled = appState.loadingCatalog || appState.loadingSheet;
+  }
+
+  const historySheetLink = $('historySheetLink');
+  if (historySheetLink) {
+    historySheetLink.href = HISTORY_SHEET_URL;
+  }
 }
 
 function renderErrorBanner() {
   const banner = $('errorBanner');
+  if (!banner) return;
+
   if (!appState.error) {
     banner.classList.add('hidden');
     banner.textContent = '';
@@ -77,14 +154,16 @@ function renderControls() {
   const select = $('sheetSelect');
   const catalog = appState.sheetCatalog || [];
 
-  select.innerHTML = catalog.length
-    ? catalog.map((sheet) => `<option value="${sheet.sheetId}">${esc(sheet.title)}</option>`).join('')
-    : '<option value="">시트 없음</option>';
+  if (select) {
+    select.innerHTML = catalog.length
+      ? catalog.map((sheet) => `<option value="${sheet.sheetId}">${esc(sheet.title)}</option>`).join('')
+      : '<option value="">시트 없음</option>';
 
-  if (appState.selectedSheetId) {
-    select.value = String(appState.selectedSheetId);
-  } else if (catalog[0]) {
-    select.value = String(catalog[0].sheetId);
+    if (appState.selectedSheetId) {
+      select.value = String(appState.selectedSheetId);
+    } else if (catalog[0]) {
+      select.value = String(catalog[0].sheetId);
+    }
   }
 
   $('payersBadge').textContent = appState.payers
@@ -138,9 +217,7 @@ function renderResults() {
   const rows = currentRowsForRendering();
   const colors = colorMap(rows);
 
-  $('resultMeta').textContent = selectedSheet()
-    ? selectedSheet()?.title || ''
-    : '';
+  $('resultMeta').textContent = selectedSheet()?.title || '';
 
   if (!result) {
     $('summaryBadge').textContent = '대기 중';
@@ -187,14 +264,12 @@ function renderResults() {
 
   const maxAmount = Math.max(1, ...rows.map((row) => row.amount || 0));
   $('barsWrap').innerHTML = [...rows]
-    .sort((a, b) => (b.amount || 0) - (a.amount || 0))
+    .sort((left, right) => (right.amount || 0) - (left.amount || 0))
     .map((row) => {
       const width = Math.max(2, Math.round(((row.amount || 0) / maxAmount) * 100));
       return `
         <div class="bar-row">
-          <div class="bar-name ${row.isOther ? 'danger-text' : ''}">
-            ${esc(row.name)}
-          </div>
+          <div class="bar-name ${row.isOther ? 'danger-text' : ''}">${esc(row.name)}</div>
           <div class="bar-track">
             <div class="bar-fill" style="width:${width}%;background:${colors.get(row.name) || '#475569'}"></div>
           </div>
@@ -258,7 +333,7 @@ function renderHistoryTable() {
             <span>${esc(record.applicantsFileName || '-')}</span>
           </div>
         </td>
-        <td>${record.countMode === 'uniq' ? '고유 전화번호' : '결제 건수'}</td>
+        <td>${countModeLabel(record.countMode)}</td>
         <td class="num">${formatKRW(record.summary?.totalPayAmount || 0)}</td>
         <td class="num">${formatKRW(record.summary?.matchedAmount || 0)}</td>
         <td class="num">${formatKRW(record.summary?.otherAmount || 0)}</td>
@@ -283,41 +358,45 @@ function renderHistoryDetail() {
   const record = appState.historyRecords[appState.activeHistoryId];
 
   if (!record?.snapshot) {
-    $('historyDetailBody').innerHTML = '<div class="empty-row">기록 목록에서 `보기`를 누르면 저장된 매칭 결과를 다시 확인할 수 있습니다.</div>';
+    $('historyDetailBody').innerHTML = '<div class="empty-row">기록 목록에서 보기 버튼을 누르면 저장된 매칭 결과를 다시 확인할 수 있습니다.</div>';
     return;
   }
 
   const snapshot = record.snapshot;
   const rows = snapshot.dashboard || [];
+  const meta = historyMeta(record);
 
   $('historyDetailBody').innerHTML = `
-    <div class="section-head compact-head">
-      <div>
-        <h3>${esc(record.payerSheet?.title || '-')}</h3>
+    <div class="history-detail-header">
+      <div class="history-detail-copy">
+        <h3>${esc(historyLabel(record, '저장 기록'))}</h3>
+        <p>${esc(meta.join(' · '))}</p>
       </div>
-      <span class="status-pill">${record.countMode === 'uniq' ? '고유 전화번호' : '결제 건수'}</span>
+      <div class="compare-badges">
+        <span class="status-pill">${countModeLabel(record.countMode)}</span>
+      </div>
     </div>
 
-    <div class="detail-summary-grid">
-      <article class="mini-stat">
+    <div class="history-stat-grid">
+      <article class="history-stat">
         <p class="mini-stat-label">총 결제금액</p>
         <strong>${formatKRW(snapshot.summary?.totalPayAmount || 0)}</strong>
       </article>
-      <article class="mini-stat">
+      <article class="history-stat">
         <p class="mini-stat-label">매칭 결제금액</p>
         <strong>${formatKRW(snapshot.summary?.matchedAmount || 0)}</strong>
       </article>
-      <article class="mini-stat">
+      <article class="history-stat">
         <p class="mini-stat-label">기타 금액</p>
         <strong>${formatKRW(snapshot.summary?.otherAmount || 0)}</strong>
       </article>
-      <article class="mini-stat">
-        <p class="mini-stat-label">누락 번호 금액</p>
+      <article class="history-stat">
+        <p class="mini-stat-label">번호 누락 금액</p>
         <strong>${formatKRW(snapshot.summary?.missingPhoneAmountSum || 0)}</strong>
       </article>
     </div>
 
-    <div class="table-card">
+    <div class="table-card compact-table">
       <table>
         <thead>
           <tr>
@@ -346,12 +425,72 @@ function renderHistoryDetail() {
   `;
 }
 
+function renderMixComparison() {
+  const baseRecord = appState.historyRecords[appState.compareBaseId];
+  const targetRecord = appState.historyRecords[appState.compareTargetId];
+
+  if (!baseRecord?.snapshot || !targetRecord?.snapshot) {
+    $('comparisonMixBody').innerHTML = '<div class="empty-row">기록 목록에서 비교 A와 비교 B를 선택하면 구글, 메타, 나머지, 미매칭 4개 비중 비교가 표시됩니다.</div>';
+    return;
+  }
+
+  const comparison = compareSnapshots(baseRecord.snapshot, targetRecord.snapshot);
+  const bucketRows = comparison?.bucketRows || [];
+
+  $('comparisonMixBody').innerHTML = `
+    <div class="history-detail-header">
+      <div class="history-detail-copy">
+        <h3>4개 묶음 비중 비교</h3>
+        <p>구글 · 메타 · 나머지 · 미매칭</p>
+      </div>
+      <div class="compare-badges">
+        <span class="status-pill">A ${esc(historyLabel(baseRecord, '기록 A'))}</span>
+        <span class="status-pill muted">B ${esc(historyLabel(targetRecord, '기록 B'))}</span>
+      </div>
+    </div>
+
+    <div class="bucket-compare-list">
+      ${bucketRows.map((row) => {
+        const color = BUCKET_COLORS[row.key] || BUCKET_COLORS.others;
+        return `
+          <article class="bucket-compare-row">
+            <div class="bucket-compare-meta">
+              <span class="bucket-label">${esc(row.label)}</span>
+              <div class="bucket-values">
+                <span>A ${formatPercent(row.baseShare)} · ${formatKRW(row.baseAmount)}</span>
+                <span>B ${formatPercent(row.targetShare)} · ${formatKRW(row.targetAmount)}</span>
+              </div>
+              <span class="bucket-diff ${deltaClass(row.shareDiff)}">${formatDeltaPercentPoint(row.shareDiff)}</span>
+            </div>
+
+            <div class="bucket-track-stack">
+              <div class="bucket-track-line">
+                <span class="bucket-track-caption">A</span>
+                <div class="bucket-track">
+                  <div class="bucket-fill bucket-fill-base" style="width:${shareWidth(row.baseShare)};background:${color}"></div>
+                </div>
+              </div>
+
+              <div class="bucket-track-line">
+                <span class="bucket-track-caption muted">B</span>
+                <div class="bucket-track">
+                  <div class="bucket-fill bucket-fill-target" style="width:${shareWidth(row.targetShare)};background:${color}"></div>
+                </div>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
 function renderComparison() {
   const baseRecord = appState.historyRecords[appState.compareBaseId];
   const targetRecord = appState.historyRecords[appState.compareTargetId];
 
   if (!baseRecord?.snapshot || !targetRecord?.snapshot) {
-    $('compareBody').innerHTML = '<div class="empty-row">기록 목록에서 `비교 A`와 `비교 B`를 각각 선택하면 차이 분석이 표시됩니다.</div>';
+    $('compareBody').innerHTML = '<div class="empty-row">기록 목록에서 비교 A와 비교 B를 각각 선택하면 차이 분석이 표시됩니다.</div>';
     return;
   }
 
@@ -359,44 +498,37 @@ function renderComparison() {
   const rows = comparison?.rows || [];
 
   $('compareBody').innerHTML = `
-    <div class="section-head compact-head">
-      <div>
+    <div class="history-detail-header">
+      <div class="history-detail-copy">
         <h3>A/B 기록 비교</h3>
+        <p>${esc(historyLabel(baseRecord, '기록 A'))} vs ${esc(historyLabel(targetRecord, '기록 B'))}</p>
       </div>
       <div class="compare-badges">
-        <span class="status-pill">A ${esc(baseRecord.note || '메모 없음')}</span>
-        <span class="status-pill muted">B ${esc(targetRecord.note || '메모 없음')}</span>
+        <span class="status-pill">A ${countModeLabel(baseRecord.countMode)}</span>
+        <span class="status-pill muted">B ${countModeLabel(targetRecord.countMode)}</span>
       </div>
     </div>
 
-    <div class="detail-summary-grid">
-      <article class="mini-stat">
+    <div class="history-stat-grid">
+      <article class="history-stat">
         <p class="mini-stat-label">총 결제금액 차이</p>
-        <strong class="${comparison.summary.totalPayAmountDiff > 0 ? 'delta-positive' : comparison.summary.totalPayAmountDiff < 0 ? 'delta-negative' : ''}">
-          ${formatDeltaKRW(comparison.summary.totalPayAmountDiff)}
-        </strong>
+        <strong class="${deltaClass(comparison.summary.totalPayAmountDiff)}">${formatDeltaKRW(comparison.summary.totalPayAmountDiff)}</strong>
       </article>
-      <article class="mini-stat">
+      <article class="history-stat">
         <p class="mini-stat-label">총 결제건수 차이</p>
-        <strong class="${comparison.summary.totalPayCountDiff > 0 ? 'delta-positive' : comparison.summary.totalPayCountDiff < 0 ? 'delta-negative' : ''}">
-          ${formatDeltaCount(comparison.summary.totalPayCountDiff)}
-        </strong>
+        <strong class="${deltaClass(comparison.summary.totalPayCountDiff)}">${formatDeltaCount(comparison.summary.totalPayCountDiff)}</strong>
       </article>
-      <article class="mini-stat">
+      <article class="history-stat">
         <p class="mini-stat-label">매칭 금액 차이</p>
-        <strong class="${comparison.summary.matchedAmountDiff > 0 ? 'delta-positive' : comparison.summary.matchedAmountDiff < 0 ? 'delta-negative' : ''}">
-          ${formatDeltaKRW(comparison.summary.matchedAmountDiff)}
-        </strong>
+        <strong class="${deltaClass(comparison.summary.matchedAmountDiff)}">${formatDeltaKRW(comparison.summary.matchedAmountDiff)}</strong>
       </article>
-      <article class="mini-stat">
+      <article class="history-stat">
         <p class="mini-stat-label">기타 금액 차이</p>
-        <strong class="${comparison.summary.otherAmountDiff > 0 ? 'delta-positive' : comparison.summary.otherAmountDiff < 0 ? 'delta-negative' : ''}">
-          ${formatDeltaKRW(comparison.summary.otherAmountDiff)}
-        </strong>
+        <strong class="${deltaClass(comparison.summary.otherAmountDiff)}">${formatDeltaKRW(comparison.summary.otherAmountDiff)}</strong>
       </article>
     </div>
 
-    <div class="table-card">
+    <div class="table-card compact-table">
       <table>
         <thead>
           <tr>
@@ -415,14 +547,10 @@ function renderComparison() {
               <td>${esc(row.name)}</td>
               <td class="num">${formatKRW(row.baseAmount)}</td>
               <td class="num">${formatKRW(row.targetAmount)}</td>
-              <td class="num ${row.amountDiff > 0 ? 'delta-positive' : row.amountDiff < 0 ? 'delta-negative' : ''}">
-                ${formatDeltaKRW(row.amountDiff)}
-              </td>
+              <td class="num ${deltaClass(row.amountDiff)}">${formatDeltaKRW(row.amountDiff)}</td>
               <td class="num">${formatCount(row.basePay)}</td>
               <td class="num">${formatCount(row.targetPay)}</td>
-              <td class="num ${row.rateDiff > 0 ? 'delta-positive' : row.rateDiff < 0 ? 'delta-negative' : ''}">
-                ${row.rateDiff == null ? '-' : formatDeltaPercentPoint(row.rateDiff)}
-              </td>
+              <td class="num ${deltaClass(row.rateDiff || 0)}">${row.rateDiff == null ? '-' : formatDeltaPercentPoint(row.rateDiff)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -440,5 +568,6 @@ export function renderAll() {
   renderMissingPhoneTable();
   renderHistoryTable();
   renderHistoryDetail();
+  renderMixComparison();
   renderComparison();
 }

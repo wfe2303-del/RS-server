@@ -11,15 +11,10 @@
   <div class="page-shell">
     <header class="hero">
       <div class="hero-brand">
+        <img class="hero-logo" src="./assets/classaround-logo.png" alt="ClassAround" />
         <div class="hero-title-stack">
           <h1>무료강의 결제 매칭 보드</h1>
         </div>
-        <img class="hero-logo" src="./assets/classaround-logo.png" alt="ClassAround" />
-      </div>
-
-      <div class="hero-actions">
-        <span id="syncBadge" class="status-pill">연결 대기 중</span>
-        <button id="refreshBtn" class="btn btn-secondary" type="button">시트 새로고침</button>
       </div>
     </header>
 
@@ -52,6 +47,7 @@
       </div>
 
       <div class="toolbar-actions">
+        <button id="refreshBtn" class="btn btn-secondary" type="button">시트 새로고침</button>
         <button id="runBtn" class="btn btn-success" type="button">매칭 실행</button>
       </div>
     </section>
@@ -103,7 +99,7 @@
 
     <section class="card lecture-list-card">
       <div class="section-head">
-        <div>
+        <div class="section-title-block">
           <h2>광고매체별 결제 성과</h2>
           <p id="resultMeta" class="section-meta"></p>
         </div>
@@ -159,7 +155,7 @@
 
     <section class="card detail-card">
       <div class="section-head compact-head">
-        <div>
+        <div class="section-title-block">
           <h2>전화번호 누락 결제자</h2>
         </div>
         <div class="detail-actions">
@@ -190,13 +186,24 @@
 
     <section class="card detail-card">
       <div class="section-head">
-        <div>
+        <div class="section-title-block">
           <h2>저장된 매칭 기록</h2>
+        </div>
+        <div class="section-actions">
+          <a
+            id="historySheetLink"
+            class="btn btn-secondary btn-small history-open-link"
+            href="https://docs.google.com/spreadsheets/d/1c4U9TwFK9wNmSmiN6lgl9iaQlaC57x7DcscfLtzb-pA/edit?gid=549932056#gid=549932056"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            저장 기록 시트 열기
+          </a>
         </div>
       </div>
 
       <div class="table-card">
-        <table>
+        <table class="history-table">
           <thead>
             <tr>
               <th>저장 시각</th>
@@ -218,19 +225,28 @@
       </div>
     </section>
 
-    <section class="visual-grid visual-grid-wide">
-      <article class="chart-card">
+    <section class="comparison-grid">
+      <article class="chart-card comparison-card">
         <div class="section-head compact-head">
-          <div>
+          <div class="section-title-block">
             <h3>저장 기록 상세</h3>
           </div>
         </div>
         <div id="historyDetailBody"></div>
       </article>
 
-      <article class="chart-card">
+      <article class="chart-card comparison-card">
         <div class="section-head compact-head">
-          <div>
+          <div class="section-title-block">
+            <h3>유입 비중 비교</h3>
+          </div>
+        </div>
+        <div id="comparisonMixBody"></div>
+      </article>
+
+      <article class="chart-card comparison-card">
+        <div class="section-head compact-head">
+          <div class="section-title-block">
             <h3>기록 비교 분석</h3>
           </div>
         </div>
