@@ -23,6 +23,11 @@
     <section class="card toolbar-card">
       <div class="toolbar-grid toolbar-grid-wide">
         <label class="field">
+          <span>결제자 시트 검색</span>
+          <input id="sheetSearchInput" class="input-text" type="text" placeholder="시트명으로 검색" />
+        </label>
+
+        <label class="field">
           <span>결제자 시트</span>
           <select id="sheetSelect" class="input-select"></select>
         </label>
@@ -66,7 +71,16 @@
 
       <div class="toolbar-actions">
         <button id="saveHistoryBtn" class="btn btn-danger" type="button">현재 결과 저장</button>
+        <button id="openHistoryModalBtn" class="btn btn-secondary" type="button">저장된 매칭 열기</button>
         <button id="reloadHistoryBtn" class="btn btn-secondary" type="button">기록 새로고침</button>
+        <a
+          class="btn btn-secondary history-open-link history-sheet-link"
+          href="https://docs.google.com/spreadsheets/d/1c4U9TwFK9wNmSmiN6lgl9iaQlaC57x7DcscfLtzb-pA/edit?gid=549932056#gid=549932056"
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          저장 기록 시트 열기
+        </a>
       </div>
     </section>
 
@@ -184,55 +198,14 @@
       </div>
     </section>
 
-    <section class="card detail-card">
-      <div class="section-head">
-        <div class="section-title-block">
-          <h2>저장된 매칭 기록</h2>
-        </div>
-        <div class="section-actions">
-          <a
-            id="historySheetLink"
-            class="btn btn-secondary btn-small history-open-link"
-            href="https://docs.google.com/spreadsheets/d/1c4U9TwFK9wNmSmiN6lgl9iaQlaC57x7DcscfLtzb-pA/edit?gid=549932056#gid=549932056"
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            저장 기록 시트 열기
-          </a>
-        </div>
-      </div>
-
-      <div class="table-card">
-        <table class="history-table">
-          <thead>
-            <tr>
-              <th>저장 시각</th>
-              <th>시트 / 파일</th>
-              <th>집계 기준</th>
-              <th class="num">총 결제금액</th>
-              <th class="num">매칭 금액</th>
-              <th class="num">기타 금액</th>
-              <th>메모</th>
-              <th>동작</th>
-            </tr>
-          </thead>
-          <tbody id="historyTbody">
-            <tr>
-              <td colspan="8" class="empty-row">저장 기록을 불러오는 중입니다.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
     <section class="comparison-grid">
       <article class="chart-card comparison-card">
         <div class="section-head compact-head">
           <div class="section-title-block">
-            <h3>저장 기록 상세</h3>
+            <h3>A 저장 기록</h3>
           </div>
         </div>
-        <div id="historyDetailBody"></div>
+        <div id="compareBaseBody"></div>
       </article>
 
       <article class="chart-card comparison-card">
@@ -247,12 +220,67 @@
       <article class="chart-card comparison-card">
         <div class="section-head compact-head">
           <div class="section-title-block">
-            <h3>기록 비교 분석</h3>
+            <h3>B 저장 기록</h3>
           </div>
         </div>
-        <div id="compareBody"></div>
+        <div id="compareTargetBody"></div>
       </article>
     </section>
+  </div>
+
+  <div id="historyModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop" data-history-modal-close></div>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="historyModalTitle">
+      <div class="modal-head">
+        <div class="section-title-block">
+          <h2 id="historyModalTitle">저장된 매칭 검색</h2>
+          <p class="section-meta">결제자 시트명으로 검색해서 A/B 패널에 불러옵니다.</p>
+        </div>
+        <div class="section-actions">
+          <a
+            class="btn btn-secondary btn-small history-open-link history-sheet-link"
+            href="https://docs.google.com/spreadsheets/d/1c4U9TwFK9wNmSmiN6lgl9iaQlaC57x7DcscfLtzb-pA/edit?gid=549932056#gid=549932056"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            저장 기록 시트 열기
+          </a>
+          <button id="closeHistoryModalBtn" class="btn btn-ghost btn-small" type="button">닫기</button>
+        </div>
+      </div>
+
+      <div class="modal-toolbar">
+        <label class="field">
+          <span>시트명 검색</span>
+          <input id="historySearchInput" class="input-text" type="text" placeholder="시트명으로 검색" />
+        </label>
+
+        <div class="toolbar-meta">
+          <span id="historyModalSelection" class="status-pill muted">A/B 미선택</span>
+        </div>
+      </div>
+
+      <div class="table-card modal-table">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>저장 시각</th>
+              <th>결제자 시트</th>
+              <th>신청자 파일</th>
+              <th>메모</th>
+              <th class="num">총 결제금액</th>
+              <th class="num">매칭 금액</th>
+              <th>선택</th>
+            </tr>
+          </thead>
+          <tbody id="historyModalTbody">
+            <tr>
+              <td colspan="7" class="empty-row">저장 기록을 불러오는 중입니다.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="./src/js/app.js"></script>

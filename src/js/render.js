@@ -13,8 +13,6 @@ import {
   esc,
   formatCount,
   formatDateTime,
-  formatDeltaCount,
-  formatDeltaKRW,
   formatDeltaPercentPoint,
   formatKRW,
   formatPercent,
@@ -59,6 +57,24 @@ function historyMeta(record) {
     record?.applicantsFileName || '',
     record?.savedAt ? formatDateTime(record.savedAt) : '',
   ].filter(Boolean);
+}
+
+function filteredSheetCatalog() {
+  const query = appState.sheetQuery.trim().toLowerCase();
+  if (!query) {
+    return appState.sheetCatalog || [];
+  }
+
+  return (appState.sheetCatalog || []).filter((sheet) => String(sheet.title || '').toLowerCase().includes(query));
+}
+
+function filteredHistoryRecords() {
+  const query = appState.historySearchQuery.trim().toLowerCase();
+  if (!query) {
+    return appState.historyList || [];
+  }
+
+  return (appState.historyList || []).filter((record) => String(record.payerSheet?.title || '').toLowerCase().includes(query));
 }
 
 function preferredColorForRow(row) {
@@ -122,6 +138,14 @@ function shareWidth(value) {
   return `${Math.max(0, Math.min(100, Number(value || 0) * 100)).toFixed(1)}%`;
 }
 
+function recordSelectionSummary() {
+  const baseRecord = appState.historyRecords[appState.compareBaseId];
+  const targetRecord = appState.historyRecords[appState.compareTargetId];
+  const baseLabel = baseRecord ? historyLabel(baseRecord, '기록 A') : '미선택';
+  const targetLabel = targetRecord ? historyLabel(targetRecord, '기록 B') : '미선택';
+  return `A ${baseLabel} / B ${targetLabel}`;
+}
+
 function renderHeader() {
   document.title = APP_TITLE;
 
@@ -130,10 +154,9 @@ function renderHeader() {
     refreshButton.disabled = appState.loadingCatalog || appState.loadingSheet;
   }
 
-  const historySheetLink = $('historySheetLink');
-  if (historySheetLink) {
-    historySheetLink.href = HISTORY_SHEET_URL;
-  }
+  document.querySelectorAll('.history-sheet-link').forEach((link) => {
+    link.href = HISTORY_SHEET_URL;
+  });
 }
 
 function renderErrorBanner() {
@@ -151,17 +174,24 @@ function renderErrorBanner() {
 }
 
 function renderControls() {
+  const catalog = filteredSheetCatalog();
+  const sheetSearchInput = $('sheetSearchInput');
   const select = $('sheetSelect');
-  const catalog = appState.sheetCatalog || [];
+
+  if (sheetSearchInput && sheetSearchInput.value !== appState.sheetQuery) {
+    sheetSearchInput.value = appState.sheetQuery;
+  }
 
   if (select) {
     select.innerHTML = catalog.length
       ? catalog.map((sheet) => `<option value="${sheet.sheetId}">${esc(sheet.title)}</option>`).join('')
-      : '<option value="">시트 없음</option>';
+      : '<option value="">검색 결과 없음</option>';
 
-    if (appState.selectedSheetId) {
+    select.disabled = !catalog.length;
+
+    if (catalog.some((sheet) => String(sheet.sheetId) === String(appState.selectedSheetId))) {
       select.value = String(appState.selectedSheetId);
-    } else if (catalog[0]) {
+    } else if (!appState.sheetQuery && catalog[0]) {
       select.value = String(catalog[0].sheetId);
     }
   }
@@ -306,59 +336,12 @@ function renderMissingPhoneTable() {
   `).join('');
 }
 
-function renderHistoryTable() {
-  const rows = appState.historyList || [];
-
-  if (appState.loadingHistory && !rows.length) {
-    $('historyTbody').innerHTML = '<tr><td colspan="8" class="empty-row">저장 기록을 불러오는 중입니다.</td></tr>';
-    return;
-  }
-
-  if (!rows.length) {
-    $('historyTbody').innerHTML = '<tr><td colspan="8" class="empty-row">아직 저장된 매칭 기록이 없습니다.</td></tr>';
-    return;
-  }
-
-  $('historyTbody').innerHTML = rows.map((record) => {
-    const isActive = appState.activeHistoryId === record.recordId;
-    const isBase = appState.compareBaseId === record.recordId;
-    const isTarget = appState.compareTargetId === record.recordId;
-
-    return `
-      <tr class="${isActive ? 'history-row is-selected' : 'history-row'}">
-        <td>${formatDateTime(record.savedAt)}</td>
-        <td>
-          <div class="stack-cell">
-            <strong>${esc(record.payerSheet?.title || '-')}</strong>
-            <span>${esc(record.applicantsFileName || '-')}</span>
-          </div>
-        </td>
-        <td>${countModeLabel(record.countMode)}</td>
-        <td class="num">${formatKRW(record.summary?.totalPayAmount || 0)}</td>
-        <td class="num">${formatKRW(record.summary?.matchedAmount || 0)}</td>
-        <td class="num">${formatKRW(record.summary?.otherAmount || 0)}</td>
-        <td>${esc(record.note || '-')}</td>
-        <td>
-          <div class="action-row">
-            <button type="button" class="btn btn-secondary btn-small" data-history-action="view" data-record-id="${record.recordId}">보기</button>
-            <button type="button" class="btn btn-ghost btn-small" data-history-action="pick-base" data-record-id="${record.recordId}">
-              ${isBase ? '비교 A 선택됨' : '비교 A'}
-            </button>
-            <button type="button" class="btn btn-ghost btn-small" data-history-action="pick-target" data-record-id="${record.recordId}">
-              ${isTarget ? '비교 B 선택됨' : '비교 B'}
-            </button>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
-}
-
-function renderHistoryDetail() {
-  const record = appState.historyRecords[appState.activeHistoryId];
+function renderHistoryPanel(recordId, targetId, emptyMessage) {
+  const target = $(targetId);
+  const record = appState.historyRecords[recordId];
 
   if (!record?.snapshot) {
-    $('historyDetailBody').innerHTML = '<div class="empty-row">기록 목록에서 보기 버튼을 누르면 저장된 매칭 결과를 다시 확인할 수 있습니다.</div>';
+    target.innerHTML = `<div class="empty-row">${emptyMessage}</div>`;
     return;
   }
 
@@ -366,7 +349,7 @@ function renderHistoryDetail() {
   const rows = snapshot.dashboard || [];
   const meta = historyMeta(record);
 
-  $('historyDetailBody').innerHTML = `
+  target.innerHTML = `
     <div class="history-detail-header">
       <div class="history-detail-copy">
         <h3>${esc(historyLabel(record, '저장 기록'))}</h3>
@@ -430,7 +413,7 @@ function renderMixComparison() {
   const targetRecord = appState.historyRecords[appState.compareTargetId];
 
   if (!baseRecord?.snapshot || !targetRecord?.snapshot) {
-    $('comparisonMixBody').innerHTML = '<div class="empty-row">기록 목록에서 비교 A와 비교 B를 선택하면 구글, 메타, 나머지, 미매칭 4개 비중 비교가 표시됩니다.</div>';
+    $('comparisonMixBody').innerHTML = '<div class="empty-row">저장된 매칭 검색에서 A와 B 기록을 선택하면 구글, 메타, 온드미디어, 미매칭 비중 비교가 표시됩니다.</div>';
     return;
   }
 
@@ -440,8 +423,8 @@ function renderMixComparison() {
   $('comparisonMixBody').innerHTML = `
     <div class="history-detail-header">
       <div class="history-detail-copy">
-        <h3>4개 묶음 비중 비교</h3>
-        <p>구글 · 메타 · 나머지 · 미매칭</p>
+        <h3>유입 비중 비교</h3>
+        <p>${esc(historyLabel(baseRecord, '기록 A'))} vs ${esc(historyLabel(targetRecord, '기록 B'))}</p>
       </div>
       <div class="compare-badges">
         <span class="status-pill">A ${esc(historyLabel(baseRecord, '기록 A'))}</span>
@@ -485,78 +468,58 @@ function renderMixComparison() {
   `;
 }
 
-function renderComparison() {
-  const baseRecord = appState.historyRecords[appState.compareBaseId];
-  const targetRecord = appState.historyRecords[appState.compareTargetId];
+function renderHistoryModal() {
+  const modal = $('historyModal');
+  const searchInput = $('historySearchInput');
+  const selection = $('historyModalSelection');
+  const rows = filteredHistoryRecords();
 
-  if (!baseRecord?.snapshot || !targetRecord?.snapshot) {
-    $('compareBody').innerHTML = '<div class="empty-row">기록 목록에서 비교 A와 비교 B를 각각 선택하면 차이 분석이 표시됩니다.</div>';
+  modal.classList.toggle('hidden', !appState.historyModalOpen);
+  modal.setAttribute('aria-hidden', appState.historyModalOpen ? 'false' : 'true');
+
+  if (searchInput && searchInput.value !== appState.historySearchQuery) {
+    searchInput.value = appState.historySearchQuery;
+  }
+
+  if (selection) {
+    selection.textContent = recordSelectionSummary();
+  }
+
+  if (appState.loadingHistory && !rows.length) {
+    $('historyModalTbody').innerHTML = '<tr><td colspan="7" class="empty-row">저장 기록을 불러오는 중입니다.</td></tr>';
     return;
   }
 
-  const comparison = compareSnapshots(baseRecord.snapshot, targetRecord.snapshot);
-  const rows = comparison?.rows || [];
+  if (!rows.length) {
+    $('historyModalTbody').innerHTML = '<tr><td colspan="7" class="empty-row">검색 조건에 맞는 저장 기록이 없습니다.</td></tr>';
+    return;
+  }
 
-  $('compareBody').innerHTML = `
-    <div class="history-detail-header">
-      <div class="history-detail-copy">
-        <h3>A/B 기록 비교</h3>
-        <p>${esc(historyLabel(baseRecord, '기록 A'))} vs ${esc(historyLabel(targetRecord, '기록 B'))}</p>
-      </div>
-      <div class="compare-badges">
-        <span class="status-pill">A ${countModeLabel(baseRecord.countMode)}</span>
-        <span class="status-pill muted">B ${countModeLabel(targetRecord.countMode)}</span>
-      </div>
-    </div>
+  $('historyModalTbody').innerHTML = rows.map((record) => {
+    const isBase = appState.compareBaseId === record.recordId;
+    const isTarget = appState.compareTargetId === record.recordId;
 
-    <div class="history-stat-grid">
-      <article class="history-stat">
-        <p class="mini-stat-label">총 결제금액 차이</p>
-        <strong class="${deltaClass(comparison.summary.totalPayAmountDiff)}">${formatDeltaKRW(comparison.summary.totalPayAmountDiff)}</strong>
-      </article>
-      <article class="history-stat">
-        <p class="mini-stat-label">총 결제건수 차이</p>
-        <strong class="${deltaClass(comparison.summary.totalPayCountDiff)}">${formatDeltaCount(comparison.summary.totalPayCountDiff)}</strong>
-      </article>
-      <article class="history-stat">
-        <p class="mini-stat-label">매칭 금액 차이</p>
-        <strong class="${deltaClass(comparison.summary.matchedAmountDiff)}">${formatDeltaKRW(comparison.summary.matchedAmountDiff)}</strong>
-      </article>
-      <article class="history-stat">
-        <p class="mini-stat-label">기타 금액 차이</p>
-        <strong class="${deltaClass(comparison.summary.otherAmountDiff)}">${formatDeltaKRW(comparison.summary.otherAmountDiff)}</strong>
-      </article>
-    </div>
-
-    <div class="table-card compact-table">
-      <table>
-        <thead>
-          <tr>
-            <th>유입 경로</th>
-            <th class="num">A 금액</th>
-            <th class="num">B 금액</th>
-            <th class="num">차이</th>
-            <th class="num">A 결제</th>
-            <th class="num">B 결제</th>
-            <th class="num">전환율 차이</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows.map((row) => `
-            <tr>
-              <td>${esc(row.name)}</td>
-              <td class="num">${formatKRW(row.baseAmount)}</td>
-              <td class="num">${formatKRW(row.targetAmount)}</td>
-              <td class="num ${deltaClass(row.amountDiff)}">${formatDeltaKRW(row.amountDiff)}</td>
-              <td class="num">${formatCount(row.basePay)}</td>
-              <td class="num">${formatCount(row.targetPay)}</td>
-              <td class="num ${deltaClass(row.rateDiff || 0)}">${row.rateDiff == null ? '-' : formatDeltaPercentPoint(row.rateDiff)}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
+    return `
+      <tr class="${isBase || isTarget ? 'history-row is-selected' : 'history-row'}">
+        <td>${formatDateTime(record.savedAt)}</td>
+        <td>${esc(record.payerSheet?.title || '-')}</td>
+        <td>${esc(record.applicantsFileName || '-')}</td>
+        <td>${esc(record.note || '-')}</td>
+        <td class="num">${formatKRW(record.summary?.totalPayAmount || 0)}</td>
+        <td class="num">${formatKRW(record.summary?.matchedAmount || 0)}</td>
+        <td>
+          <div class="action-row">
+            <button type="button" class="btn btn-secondary btn-small" data-history-action="pick-base" data-record-id="${record.recordId}">
+              ${isBase ? 'A 선택됨' : 'A 선택'}
+            </button>
+            <button type="button" class="btn btn-ghost btn-small" data-history-action="pick-target" data-record-id="${record.recordId}">
+              ${isTarget ? 'B 선택됨' : 'B 선택'}
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
 }
 
 export function renderAll() {
@@ -566,8 +529,16 @@ export function renderAll() {
   renderSummaryCards();
   renderResults();
   renderMissingPhoneTable();
-  renderHistoryTable();
-  renderHistoryDetail();
+  renderHistoryPanel(
+    appState.compareBaseId,
+    'compareBaseBody',
+    '저장된 매칭 검색에서 A 기록을 선택하면 당시 매칭 결과가 여기에 표시됩니다.',
+  );
   renderMixComparison();
-  renderComparison();
+  renderHistoryPanel(
+    appState.compareTargetId,
+    'compareTargetBody',
+    '저장된 매칭 검색에서 B 기록을 선택하면 당시 매칭 결과가 여기에 표시됩니다.',
+  );
+  renderHistoryModal();
 }

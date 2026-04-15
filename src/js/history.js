@@ -97,7 +97,7 @@ export function buildBucketSummary(snapshot) {
   const bucketMap = new Map([
     ['google', emptyBucket('google', '구글')],
     ['meta', emptyBucket('meta', '메타')],
-    ['others', emptyBucket('others', '나머지')],
+    ['others', emptyBucket('others', '온드미디어')],
     ['unmatched', emptyBucket('unmatched', '미매칭')],
   ]);
 

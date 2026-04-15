@@ -218,7 +218,7 @@ th {
 }
 
 .toolbar-grid-wide {
-  grid-template-columns: minmax(220px, 280px) minmax(160px, 220px) minmax(280px, 1fr) auto;
+  grid-template-columns: minmax(220px, 240px) minmax(220px, 280px) minmax(160px, 220px) minmax(280px, 1fr) auto;
 }
 
 .toolbar-grid-history {
@@ -483,9 +483,56 @@ th {
   min-height: 100%;
 }
 
-#historyDetailBody,
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(4px);
+}
+
+.modal-dialog {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  width: min(1180px, 100%);
+  max-height: calc(100vh - 48px);
+  padding: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(203, 213, 225, 0.78);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 28px 64px rgba(15, 23, 42, 0.18);
+}
+
+.modal-head,
+.modal-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.modal-toolbar .field {
+  flex: 1 1 auto;
+}
+
+.modal-table {
+  max-height: calc(100vh - 240px);
+}
+
+#compareBaseBody,
 #comparisonMixBody,
-#compareBody {
+#compareTargetBody {
   display: grid;
   gap: 14px;
 }
@@ -768,6 +815,20 @@ th {
   .toolbar-grid,
   .toolbar-grid-history {
     grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .modal {
+    padding: 12px;
+  }
+
+  .modal-dialog {
+    max-height: calc(100vh - 24px);
+  }
+
+  .modal-head,
+  .modal-toolbar {
+    flex-direction: column;
     align-items: stretch;
   }
 

@@ -136,13 +136,17 @@ async function loadHistoryList() {
       rememberHistoryRecord(previous ? { ...previous, ...record } : record);
     });
 
-    if (appState.activeHistoryId && !appState.historyList.find((record) => record.recordId === appState.activeHistoryId)) {
-      appState.activeHistoryId = '';
+    if (!appState.historyList.some((record) => record.recordId === appState.compareBaseId)) {
+      appState.compareBaseId = appState.historyList[0]?.recordId || '';
     }
 
-    if (!appState.activeHistoryId && appState.historyList[0]) {
-      appState.activeHistoryId = appState.historyList[0].recordId;
-      await ensureHistoryRecord(appState.activeHistoryId);
+    if (!appState.historyList.some((record) => record.recordId === appState.compareTargetId)) {
+      appState.compareTargetId = appState.historyList.find((record) => record.recordId !== appState.compareBaseId)?.recordId || '';
+    }
+
+    const compareIds = [...new Set([appState.compareBaseId, appState.compareTargetId].filter(Boolean))];
+    for (const recordId of compareIds) {
+      await ensureHistoryRecord(recordId);
     }
   } catch (error) {
     appState.error = error.message || '저장 기록을 불러오지 못했습니다.';
@@ -150,18 +154,6 @@ async function loadHistoryList() {
     appState.loadingHistory = false;
     renderAll();
   }
-}
-
-async function viewHistory(recordId) {
-  try {
-    appState.error = '';
-    appState.activeHistoryId = recordId;
-    await ensureHistoryRecord(recordId);
-  } catch (error) {
-    appState.error = error.message || '저장 기록을 불러오지 못했습니다.';
-  }
-
-  renderAll();
 }
 
 async function pickHistoryForCompare(slot, recordId) {
@@ -207,11 +199,10 @@ async function saveCurrentHistory() {
     if (payload.record) {
       rememberHistoryRecord(payload.record);
       appState.lastSavedRecordId = payload.record.recordId;
-      appState.activeHistoryId = payload.record.recordId;
 
       if (!appState.compareBaseId) {
         appState.compareBaseId = payload.record.recordId;
-      } else if (!appState.compareTargetId) {
+      } else {
         appState.compareTargetId = payload.record.recordId;
       }
     }
@@ -230,6 +221,11 @@ function bindEvents() {
   $('refreshBtn').addEventListener('click', async () => {
     await loadCatalog();
     await loadSelectedSheet();
+  });
+
+  $('sheetSearchInput').addEventListener('input', (event) => {
+    appState.sheetQuery = event.target.value || '';
+    renderAll();
   });
 
   $('sheetSelect').addEventListener('change', async (event) => {
@@ -258,22 +254,47 @@ function bindEvents() {
     await saveCurrentHistory();
   });
 
+  $('openHistoryModalBtn').addEventListener('click', () => {
+    appState.historyModalOpen = true;
+    renderAll();
+    $('historySearchInput')?.focus();
+  });
+
+  $('closeHistoryModalBtn').addEventListener('click', () => {
+    appState.historyModalOpen = false;
+    renderAll();
+  });
+
   $('reloadHistoryBtn').addEventListener('click', async () => {
     await loadHistoryList();
   });
 
-  $('historyTbody').addEventListener('click', async (event) => {
+  $('historySearchInput').addEventListener('input', (event) => {
+    appState.historySearchQuery = event.target.value || '';
+    renderAll();
+  });
+
+  $('historyModal').addEventListener('click', (event) => {
+    if (event.target.matches('[data-history-modal-close]')) {
+      appState.historyModalOpen = false;
+      renderAll();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && appState.historyModalOpen) {
+      appState.historyModalOpen = false;
+      renderAll();
+    }
+  });
+
+  $('historyModalTbody').addEventListener('click', async (event) => {
     const button = event.target.closest('[data-history-action]');
     if (!button) return;
 
     const action = button.getAttribute('data-history-action');
     const recordId = button.getAttribute('data-record-id');
     if (!recordId) return;
-
-    if (action === 'view') {
-      await viewHistory(recordId);
-      return;
-    }
 
     if (action === 'pick-base') {
       await pickHistoryForCompare('base', recordId);
